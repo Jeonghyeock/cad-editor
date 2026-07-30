@@ -1,0 +1,51 @@
+@use "../colors" as *;
+@use "../z-index" as z;
+@use "../shadows";
+
+// splash dark theme — ctx-menu 패턴 (gray-900 bg + brand-500 hover + light text).
+.context-menu {
+  position: absolute;
+  z-index: z.$overlay;
+  min-width: 120px;
+  padding: 4px;
+  background-color: $gray-900;
+  color: $gray-100;
+  border: 1px solid $border-dark-soft;
+  border-radius: 6px;
+  box-shadow: shadows.$floating;
+
+  &__item {
+    position: relative;
+    padding: 6px 10px 6px 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    color: $gray-100;
+
+    &:hover {
+      background-color: $primary-500;
+      color: $white;
+    }
+
+    svg {
+      position: absolute;
+      left: 4px;
+      top: 8px;
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &__separator {
+    height: 1px;
+    margin: 4px 10px;
+    background-color: $border-dark-soft;
+  }
+
+  &__label {
+    padding: 8px 16px;
+    font-weight: bold;
+    color: $primary-300;
+    cursor: default;
+  }
+}

@@ -1,0 +1,10 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 원본 (작은 사각형) -->
+  <rect x="4" y="11" width="5" height="5" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 2"/>
+  <!-- 복사본 (큰 사각형) -->
+  <rect x="9" y="4" width="11" height="11" stroke="currentColor" stroke-width="1.2"/>
+  <!-- 중심점 -->
+  <circle cx="4" cy="20" r="1.5" fill="currentColor"/>
+  <!-- 스케일 선 -->
+  <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2" stroke-linecap="round"/>
+</svg>

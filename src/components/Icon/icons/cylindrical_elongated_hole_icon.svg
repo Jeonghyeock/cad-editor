@@ -1,0 +1,5 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Cylindrical Elongated Hole: 바깥 호 → 끝 캡 → 안쪽 호(역방향) → 시작 캡 -->
+<!-- 곡률 중심=(0,24), 바깥R=22, 안쪽R=15, 캡R=3.5, sweep≈50° -->
+<path d="M 7.5,3.3 A 22,22 0 0,1 20.7,16.5 A 3.5,3.5 0 0,1 14.1,18.9 A 15,15 0 0,0 5.1,9.9 A 3.5,3.5 0 0,1 7.5,3.3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+</svg>

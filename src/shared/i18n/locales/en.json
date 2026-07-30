@@ -1,0 +1,8 @@
+{
+  "dialog.driven.message": "This dimension would over-constrain the sketch.\nCreate it as a reference (driven) dimension instead?",
+  "dialog.driven.confirm": "Create as Reference",
+  "dialog.driven.cancel": "Cancel",
+  "errorBoundary.title": "An unexpected error occurred",
+  "errorBoundary.unknown": "Unknown error",
+  "errorBoundary.goHome": "Go to Home"
+}

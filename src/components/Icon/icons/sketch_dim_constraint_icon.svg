@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <line x1="4" y1="14" x2="20" y2="14"/>
+  <polyline points="4,14 7,12 4,14 7,16"/>
+  <polyline points="20,14 17,12 20,14 17,16"/>
+  <line x1="4" y1="18" x2="4" y2="11"/>
+  <line x1="20" y1="18" x2="20" y2="11"/>
+  <text x="12" y="11" text-anchor="middle" font-size="7" font-weight="600" fill="currentColor" stroke="none" font-family="sans-serif">D</text>
+</svg>

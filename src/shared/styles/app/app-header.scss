@@ -1,0 +1,131 @@
+@use "../colors";
+
+// splash dark theme — file tabs 영역 (splash 의 wsnav 패턴: surface-3 base + surface-2 divider + surface hover, active = surface-2)
+.app-header {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  background: colors.$surface-dark-bg;
+  border-bottom: 1px solid colors.$border-dark-soft;
+  color: colors.$gray-100;
+
+  &__logo {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 46px;
+    height: 40px;
+    border-right: 1px solid colors.$border-dark-soft;
+    // splash dark theme — logo 파란색 (brand-500). SVG path 가 fill="currentColor" 로
+    // 통일되어 있어 color 만 설정하면 cascade 됨.
+    color: colors.$primary-500;
+
+    svg {
+      width: 26px;
+      height: 26px;
+    }
+  }
+
+  &__files-open-button {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 100%;
+    border-right: 1px solid colors.$border-dark-soft;
+    background: colors.$surface-dark-bg;
+    color: colors.$white;
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    &:hover {
+      background: colors.$surface-dark;
+    }
+  }
+
+  &__files-container {
+    flex: 1;
+    display: flex;
+  }
+
+  &__files-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-left: 14px;
+    padding-right: 30px;
+    background: colors.$surface-dark-bg;
+    border-right: 1px solid colors.$border-dark-soft;
+    color: colors.$gray-100;
+    cursor: pointer;
+
+    &:hover {
+      background: colors.$surface-dark;
+      color: colors.$white;
+    }
+
+    &.active {
+      background: colors.$surface-dark-hover;
+      color: colors.$white;
+    }
+
+    &-title {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      padding-right: 8px;
+
+      & > p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      & > span {
+        position: absolute;
+        right: 4px;
+      }
+    }
+
+    & > button {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      display: flex;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: colors.$white;
+
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+    }
+  }
+
+  &__create-file-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    background: colors.$surface-dark-bg;
+    color: colors.$white;
+    border-width: 1px;
+    border-color: colors.$border-dark-soft;
+    cursor: pointer;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      background: colors.$surface-dark;
+    }
+  }
+}

@@ -1,0 +1,51 @@
+# --- Logs ---
+logs
+*.log
+npm-debug.log*
+
+# --- Dependency directories ---
+node_modules/
+.npm
+
+# --- TypeScript / ESLint cache ---
+*.tsbuildinfo
+.eslintcache
+
+# --- REPL history ---
+.node_repl_history
+
+# --- Build artifacts ---
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+# Webpack
+.webpack/
+# Vite
+.vite/
+# Electron-Forge
+out/
+# npm pack output
+*.tgz
+
+# --- Windows 특수 파일 ---
+nul
+
+# --- Claude ---
+.claude/settings.local.json
+.claude/hooks/slack-config.json
+.claude/agent-memory/
+.claude/*.lock
+# 외부 작업 참고 docs / 임시 파일 — repo 무관. tracked file (settings.json) 은 negation 으로 예외.
+.claude/*.md
+.claude/*.json
+!.claude/settings.json
+
+# --- 임시/스크래치 파일 (repo 무관) ---
+*.scratch.html
+
+# --- Codex ---
+.agents
+.codex
+AGENTS.md
+
+# extraction WIP (do not publish)
+_EXTRACTION_PLAN.md

@@ -1,0 +1,122 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es6": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "build/",
+    "coverage/",
+    "/config",
+    "src/shared/assets/gif.worker.js",
+    "packages/"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:import/recommended",
+    "plugin:import/typescript",
+    "plugin:prettier/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "plugins": ["import", "prettier"],
+  "parser": "@typescript-eslint/parser",
+  "rules": {
+    "no-console": ["warn", { "allow": ["error"] }],
+    "quotes": [
+      "off",
+      "double",
+      {
+        "avoidEscape": true,
+        "allowTemplateLiterals": true
+      }
+    ],
+    "react/no-unknown-property": "off",
+    "prettier/prettier": "off",
+    // import 순서 설정
+    "import/order": [
+      "warn",
+      {
+        "groups": [
+          "external",
+          "builtin",
+          "internal",
+          ["parent", "sibling", "index"]
+        ],
+        "pathGroups": [
+          {
+            "pattern": "src/app/**",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "src/components",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "src/components/**",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "src/pages/**",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "src/features/**",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "src/shared/**",
+            "group": "internal",
+            "position": "after"
+          },
+          {
+            "pattern": "../../../../**",
+            "group": "parent",
+            "position": "after"
+          },
+          { "pattern": "../../../**", "group": "parent", "position": "after" },
+          { "pattern": "../../**", "group": "parent", "position": "after" },
+          { "pattern": "../**", "group": "parent", "position": "after" },
+          { "pattern": "./**", "group": "parent", "position": "after" }
+        ],
+        "alphabetize": {
+          "order": "asc",
+          "caseInsensitive": true
+        },
+        "newlines-between": "always"
+      }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "@typescript-eslint/no-explicit-any": [
+      "warn",
+      {
+        "ignoreRestArgs": true // any 타입 사용 시 경고, 나머지 인자에 대해서는 허용
+      }
+    ],
+    "@typescript-eslint/consistent-type-imports": "error"
+  },
+  "settings": {
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "project": "./tsconfig.json"
+      }
+    },
+    "react": {
+      "version": "detect"
+    }
+  }
+}

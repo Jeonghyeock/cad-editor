@@ -1,0 +1,64 @@
+@use "../colors";
+@use "../z-index" as z;
+@use "../shadows";
+
+// Dark theme — white bg / light hover / gray-200 border 잔재 모두 dark 토큰으로.
+.dropdown {
+  position: relative;
+  display: inline-block;
+
+  &__button {
+    display: flex;
+    cursor: pointer;
+
+    &--default {
+      align-items: center;
+      padding: 4px 8px;
+      gap: 8px;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      background: colors.$surface-dark;
+      color: colors.$gray-100;
+    }
+
+    &--reverse {
+      flex-direction: row-reverse;
+    }
+  }
+
+  &__content {
+    position: absolute;
+    z-index: z.$floating;
+    background-color: colors.$surface-dark;
+    color: colors.$gray-100;
+    border: 1px solid colors.$border-dark;
+    box-shadow: shadows.$dropdown;
+    border-radius: 6px;
+    white-space: nowrap;
+
+    &-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+      padding: 6px 10px 6px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      &:hover {
+        background-color: colors.$surface-dark-hover;
+      }
+
+      &--disabled {
+        opacity: 0.4;
+        cursor: default;
+        pointer-events: none;
+      }
+    }
+  }
+}

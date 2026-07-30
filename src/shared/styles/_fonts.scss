@@ -1,0 +1,32 @@
+@use "sass:map";
+
+$font-sizes: (
+  sm: 10px,
+  md: 12px,
+  lg: 14px,
+  xl: 16px,
+);
+
+$font-weights: (
+  sm: 400,
+  md: 500,
+  lg: 600,
+  xl: 700,
+);
+
+$line-heights: (
+  md: 150%,
+  lg: 180%,
+);
+
+@mixin font-style($size: md, $weight: sm, $line-height: md) {
+  @if map.has-key($font-sizes, $size) {
+    font-size: map.get($font-sizes, $size);
+  } @else {
+    font-size: $size;
+  }
+  font-weight: map.get($font-weights, $weight);
+  line-height: map.get($line-heights, $line-height);
+}
+
+$font-family-base: "Pretendard", sans-serif;

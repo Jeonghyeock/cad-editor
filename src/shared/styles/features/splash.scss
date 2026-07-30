@@ -1,0 +1,14 @@
+// Splash — 앱 실행 시 잠깐 뜨는 창. 투명 배경 위에 아이콘만 중앙에 크게.
+.splash {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+
+  &__logo {
+    width: 200px;
+    height: 200px;
+  }
+}

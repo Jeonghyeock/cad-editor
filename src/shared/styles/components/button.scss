@@ -1,0 +1,199 @@
+@use "../colors";
+@use "sass:map";
+
+// Dark theme 매핑 — 이전 white/gray-50/gray-200 light 톤 → surface-dark/hover/border-dark.
+$colors: (
+  default: (
+    color: colors.$gray-100,         // light text on dark bg
+    color-active: colors.$white,
+    outlined: (
+      bg: colors.$surface-dark,
+      bg-hover: colors.$surface-dark-hover,
+      bg-active: colors.$border-dark,
+      border: colors.$border-dark,
+    ),
+  ),
+  primary: (
+    solid: (
+      color: colors.$white,
+      bg: colors.$primary,
+      bg-hover: colors.$primary-600,
+      bg-active: colors.$primary-700,
+    ),
+    outlined: (
+      color: colors.$primary-300,    // dark bg 위에서 잘 보이는 brand 톤
+      bg: transparent,
+      bg-hover: colors.$surface-dark-hover,
+      bg-active: colors.$border-dark,
+      border: colors.$primary-400,
+    ),
+  ),
+);
+
+$radius: (
+  none: 0,
+  md: 4px,
+  full: 50%,
+);
+
+$sizes: (
+  xs: 24px,
+  sm: 30px,
+  md: 34px,
+  lg: 36px,
+  xl: 40px,
+);
+
+.button {
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--button-radius, 4px);
+  height: var(--button-h, 34px);
+
+  &[data-disable-style="true"]:disabled {
+    cursor: default;
+  }
+
+  &[data-full-width="true"] {
+    inline-size: 100%;
+  }
+
+  &[data-variant="solid"] {
+    &[data-color="primary"] {
+      color: map.get(map.get(map.get($colors, primary), solid), color);
+      background: map.get(map.get(map.get($colors, primary), solid), bg);
+      border: 1px solid;
+      border-color: map.get(map.get(map.get($colors, primary), solid), bg);
+
+      &[data-active-style="true"]:not(:disabled) {
+        &:hover {
+          background: map.get(
+            map.get(map.get($colors, primary), solid),
+            bg-hover
+          );
+          border-color: map.get(
+            map.get(map.get($colors, primary), solid),
+            bg-hover
+          );
+        }
+
+        &:active {
+          background: map.get(
+            map.get(map.get($colors, primary), solid),
+            bg-active
+          );
+          border-color: map.get(
+            map.get(map.get($colors, primary), solid),
+            bg-active
+          );
+        }
+      }
+
+      &[data-disable-style="true"]:disabled {
+        background: colors.$surface-dark-bg;
+        color: colors.$gray-600;
+        border-color: colors.$surface-dark-bg;
+      }
+    }
+  }
+
+  &[data-variant="outlined"] {
+    &[data-color="default"] {
+      color: map.get(map.get($colors, default), color);
+      background: map.get(map.get(map.get($colors, default), outlined), bg);
+      border: 1px solid;
+      border-color: map.get(
+        map.get(map.get($colors, default), outlined),
+        border
+      );
+
+      &[data-active-style="true"]:not(:disabled) {
+        &:hover {
+          background: map.get(
+            map.get(map.get($colors, default), outlined),
+            bg-hover
+          );
+
+          color: map.get(map.get($colors, default), color-active);
+        }
+
+        &:active {
+          background: map.get(
+            map.get(map.get($colors, default), outlined),
+            bg-active
+          );
+          border-color: map.get(
+            map.get(map.get($colors, default), outlined),
+            bg-active
+          );
+
+          color: map.get(map.get($colors, default), color-active);
+        }
+      }
+
+      &[data-disable-style="true"]:disabled {
+        border-color: colors.$border-dark-soft;
+        background: colors.$surface-dark-bg;
+        color: colors.$gray-600;
+      }
+
+      &[data-semi-disable-style="true"]:disabled {
+        border-color: colors.$border-dark-soft;
+        color: colors.$gray-500;
+      }
+    }
+
+    &[data-color="primary"] {
+      border: 1px solid;
+      background: map.get(map.get(map.get($colors, primary), outlined), bg);
+      color: map.get(map.get(map.get($colors, primary), outlined), color);
+      border-color: map.get(
+        map.get(map.get($colors, primary), outlined),
+        border
+      );
+
+      &[data-active-style="true"]:not(:disabled) {
+        &:hover {
+          background: map.get(
+            map.get(map.get($colors, primary), outlined),
+            bg-hover
+          );
+        }
+
+        &:active {
+          background: map.get(
+            map.get(map.get($colors, primary), outlined),
+            bg-active
+          );
+        }
+      }
+    }
+
+    &[data-disable-style="true"]:disabled {
+      background: colors.$surface-dark-bg;
+      color: colors.$gray-600;
+    }
+  }
+
+  &[data-radius="none"] {
+    --button-radius: #{map.get($radius, none)};
+  }
+  &[data-radius="md"] {
+    --button-radius: #{map.get($radius, md)};
+  }
+  &[data-radius="full"] {
+    --button-radius: #{map.get($radius, full)};
+  }
+
+  @each $k, $v in $sizes {
+    &[data-size="#{$k}"] {
+      --button-h: #{$v};
+    }
+  }
+}

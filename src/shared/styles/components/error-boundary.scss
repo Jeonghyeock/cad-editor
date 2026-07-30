@@ -1,0 +1,34 @@
+@use "../colors";
+@use "../fonts";
+
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 12px;
+  padding: 40px;
+
+  &__icon {
+    color: colors.$red-500;
+    margin-bottom: 4px;
+  }
+
+  &__title {
+    color: colors.$gray-800;
+  }
+
+  &__message {
+    @include fonts.font-style(md, sm);
+    color: colors.$gray-500;
+    max-width: 480px;
+    text-align: center;
+    word-break: break-word;
+  }
+
+  &__action {
+    margin-top: 8px;
+  }
+}

@@ -1,0 +1,136 @@
+@use "colors";
+@use "fonts";
+@use "shadows";
+
+@forward "/node_modules/pretendard/dist/web/static/pretendard.css";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  user-select: none;
+  font-family: "Arial", "Pretendard", sans-serif;
+}
+
+body {
+  @include fonts.font-style();
+  color: colors.$gray-700;
+  background: transparent;
+  overflow: hidden;
+}
+
+li,
+ol {
+  list-style-type: none;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  // splash dark theme — 앱 root bg 를 dark surface 로 (전 화면 dark).
+  background: colors.$surface-dark-bg;
+  color: colors.$gray-100;
+  box-shadow: shadows.$modal;
+}
+
+.window-screen {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.sketch-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+h1 {
+  @include fonts.font-style(xl, xl);
+}
+
+h2 {
+  @include fonts.font-style(lg, xl);
+}
+
+h3 {
+  @include fonts.font-style(md, xl);
+}
+
+h4 {
+  @include fonts.font-style(sm, xl);
+}
+
+.text-xl {
+  @include fonts.font-style(xl, md);
+}
+
+.text-lg {
+  @include fonts.font-style(lg, sm);
+}
+
+.text-md {
+  @include fonts.font-style(md, sm);
+}
+
+.text-sm {
+  @include fonts.font-style(sm, sm);
+}
+
+::-webkit-scrollbar {
+  background: none;
+}
+
+::-webkit-scrollbar-track {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: colors.$gray-100;
+  border-radius: 40px;
+  border: 4px solid transparent;
+  background-clip: content-box;
+  outline: none;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: colors.$gray-200;
+  border-radius: 40px;
+  border: 4px solid transparent;
+  background-clip: content-box;
+  outline: none;
+}
+
+::-webkit-scrollbar-corner {
+  background: none;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-resizer {
+  display: none;
+}

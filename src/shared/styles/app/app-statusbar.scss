@@ -1,0 +1,59 @@
+@use "../colors";
+
+// splash dark theme — statusbar (surface-dark-bg + light text)
+.app-statusbar {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  height: 24px;
+  background-color: colors.$surface-dark-bg;
+  color: colors.$text-muted;
+  border-top: 1px solid colors.$border-dark-soft;
+  user-select: none;
+
+  &__left {
+    display: flex;
+    align-items: center;
+  }
+
+  &__progress-open-button {
+    display: flex;
+    align-items: center;
+    width: 248px;
+    gap: 2px;
+    padding: 2px 16px;
+    background: colors.$surface-dark;
+    border-right: 1px solid colors.$border-dark-soft;
+    color: colors.$gray-100;
+  }
+
+  &__progress-open-button-icon {
+    display: flex;
+    animation: spin 2s linear infinite;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  &__right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+  }
+
+  &__unit-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+
+    img {
+      width: 14px;
+    }
+  }
+}

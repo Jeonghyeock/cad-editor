@@ -1,0 +1,6 @@
+.vite
+.venv
+.github
+.vscode
+node_modules
+out

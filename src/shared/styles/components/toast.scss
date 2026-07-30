@@ -1,0 +1,79 @@
+@use "../colors";
+@use "../fonts";
+@use "../shadows";
+@use "../z-index" as z;
+@use "../keyframes";
+
+.toast-container {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: z.$toast;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: colors.$white;
+  box-shadow: shadows.$dropdown;
+  animation: slideUp 0.25s ease-out;
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 400px;
+
+  &__icon {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  &__message {
+    @include fonts.font-style(md, sm);
+    color: colors.$gray-700;
+    flex: 1;
+    word-break: break-word;
+  }
+
+  &__close {
+    display: flex;
+    flex-shrink: 0;
+    color: colors.$gray-400;
+    cursor: pointer;
+
+    &:hover {
+      color: colors.$gray-600;
+    }
+  }
+
+  &[data-type="error"] {
+    border-left: 3px solid colors.$red-500;
+
+    .toast__icon {
+      color: colors.$red-500;
+    }
+  }
+
+  &[data-type="success"] {
+    border-left: 3px solid colors.$green-500;
+
+    .toast__icon {
+      color: colors.$green-500;
+    }
+  }
+
+  &[data-type="info"] {
+    border-left: 3px solid colors.$primary-500;
+
+    .toast__icon {
+      color: colors.$primary-500;
+    }
+  }
+}

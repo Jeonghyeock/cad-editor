@@ -1,0 +1,275 @@
+﻿// Fillet/Chamfer/Corner 도구의 공통 유틸리티
+// 2선 교차점 탐색, 꼭짓점 매칭, 방향 결정 등 편집 도구에서 공유하는 로직
+
+import type { SerializedGeometry, VertexHandle } from "../../Setup.type";
+import { generateConstraintId } from "../../utils/idGenerator";
+import { normalizeVector } from "../../utils/mathUtils";
+
+import type { SketchConstraint } from "../constraints/SketchConstraint.type";
+import { lineLineIntersectionUnbounded } from "../GeometryIntersection";
+import type { SketchGeometryStore } from "../SketchGeometryStore";
+
+// 꼭짓점 매칭 허용 오차
+const VERTEX_MATCH_EPSILON = 1e-4;
+
+// 참조/건설 기하인지 확인
+export function isRefOrConstruction(geom: SerializedGeometry): boolean {
+  return ("isReference" in geom && !!geom.isReference) || ("isConstruction" in geom && !!geom.isConstruction);
+}
+
+// 편집 가능 line 목록 (비참조/비건설)
+export function getEditableLines(store: SketchGeometryStore): (SerializedGeometry & { type: "line" })[] {
+  const lines: (SerializedGeometry & { type: "line" })[] = [];
+  for (const geom of store.geometries.values()) {
+    if (geom.type !== "line" || isRefOrConstruction(geom)) continue;
+    lines.push(geom);
+  }
+  return lines;
+}
+
+// vertex 좌표에서 endpoint가 일치하는 비참조/비건설 line 2개 찾기
+export function findLinesAtVertex(
+  store: SketchGeometryStore,
+  vertex: VertexHandle,
+): [SerializedGeometry & { type: "line" }, SerializedGeometry & { type: "line" }] | null {
+  const vx = vertex.x, vy = vertex.y;
+  const matches: (SerializedGeometry & { type: "line" })[] = [];
+  for (const geom of store.geometries.values()) {
+    if (geom.type !== "line" || isRefOrConstruction(geom)) continue;
+    const d1 = Math.hypot(geom.x1 - vx, geom.y1 - vy);
+    const d2 = Math.hypot(geom.x2 - vx, geom.y2 - vy);
+    if (d1 < VERTEX_MATCH_EPSILON || d2 < VERTEX_MATCH_EPSILON) {
+      matches.push(geom);
+      if (matches.length >= 2) break;
+    }
+  }
+  return matches.length >= 2 ? [matches[0], matches[1]] : null;
+}
+
+// vertex가 x1 쪽 → farEnd = x2 → keepDir = 1 (x1→x2 방향 보존)
+// vertex가 x2 쪽 → farEnd = x1 → keepDir = -1 (x2→x1 방향 보존)
+export function getKeepDirFromVertex(
+  line: SerializedGeometry & { type: "line" },
+  vertex: VertexHandle,
+): 1 | -1 {
+  const d1 = Math.hypot(line.x1 - vertex.x, line.y1 - vertex.y);
+  const d2 = Math.hypot(line.x2 - vertex.x, line.y2 - vertex.y);
+  return d1 < d2 ? 1 : -1;
+}
+
+// 교차점 근처 클릭 폴백용: t 기반 방향
+export function getKeepDirFromT(t: number): 1 | -1 {
+  return t <= 0.5 ? 1 : -1;
+}
+
+// 커서 사분면 기반 방향 결정 (4조합 이등분선과 커서 벡터의 dot product)
+export function determineCornerQuadrant(
+  line1: SerializedGeometry & { type: "line" },
+  line2: SerializedGeometry & { type: "line" },
+  intersection: { x: number; y: number },
+  cursor: { x: number; y: number },
+): { keepDir1: 1 | -1; keepDir2: 1 | -1 } {
+  const P = intersection;
+  const u1 = normalizeVector(line1.x2 - line1.x1, line1.y2 - line1.y1);
+  const u2 = normalizeVector(line2.x2 - line2.x1, line2.y2 - line2.y1);
+  const cx = cursor.x - P.x, cy = cursor.y - P.y;
+
+  let bestDot = -Infinity;
+  let bestDir1: 1 | -1 = 1;
+  let bestDir2: 1 | -1 = 1;
+
+  for (const s1 of [1, -1] as const) {
+    for (const s2 of [1, -1] as const) {
+      const b = normalizeVector(s1 * u1.x + s2 * u2.x, s1 * u1.y + s2 * u2.y);
+      if (b.x === 0 && b.y === 0) continue;
+      const dot = b.x * cx + b.y * cy;
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestDir1 = s1;
+        bestDir2 = s2;
+      }
+    }
+  }
+
+  return { keepDir1: bestDir1, keepDir2: bestDir2 };
+}
+
+// 클릭 위치 근처에서 두 선의 교차점 찾기
+export function findCornerNearPoint(
+  store: SketchGeometryStore,
+  worldPos: { x: number; y: number },
+  searchRadius: number,
+): { line1: SerializedGeometry & { type: "line" }; line2: SerializedGeometry & { type: "line" }; intersection: { x: number; y: number; t1: number; t2: number } } | null {
+  const lines = getEditableLines(store);
+  let bestDist = Infinity;
+  let bestResult: ReturnType<typeof findCornerNearPoint> = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const a = lines[i], b = lines[j];
+      const hit = lineLineIntersectionUnbounded(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2);
+      if (!hit) continue;
+      const dist = Math.hypot(hit.x - worldPos.x, hit.y - worldPos.y);
+      if (dist < searchRadius && dist < bestDist) {
+        bestDist = dist;
+        bestResult = { line1: a, line2: b, intersection: hit };
+      }
+    }
+  }
+  return bestResult;
+}
+
+/**
+ * 선택된 기하 ID 집합 내부의 구속을 복제하여 새 기하 ID에 매핑
+ * 외부 기하와의 구속은 복제하지 않음 (내부 구속만 복제)
+ * @param store - SketchGeometryStore
+ * @param oldIds - 원본 기하 ID 배열
+ * @param newIds - 복제본 기하 ID 배열 (oldIds와 1:1 대응)
+ * @returns 복제된 SketchConstraint 배열
+ */
+export function cloneInternalConstraints(
+  store: SketchGeometryStore,
+  oldIds: string[],
+  newIds: string[],
+): SketchConstraint[] {
+  if (!store.constraintStore || oldIds.length === 0) return [];
+
+  // oldId → newId 매핑 테이블
+  const idMap = new Map<string, string>();
+  for (let i = 0; i < oldIds.length; i++) {
+    idMap.set(oldIds[i], newIds[i]);
+  }
+
+  const oldIdSet = new Set(oldIds);
+  const result: SketchConstraint[] = [];
+
+  // 고유 ID 생성
+  const generateCloneId = (): string =>
+    generateConstraintId("auto-clone");
+
+  // 구속이 참조하는 모든 geomId가 oldIdSet 내부인지 확인
+  const allRefsInternal = (geomIds: string[]): boolean =>
+    geomIds.every((id) => oldIdSet.has(id));
+
+  // ConstraintPointRef 매핑 (geomId만 변경, vertexIndex 유지)
+  const mapPointRef = (ref: { geomId: string; vertexIndex: number }) => ({
+    geomId: idMap.get(ref.geomId)!,
+    vertexIndex: ref.vertexIndex,
+  });
+
+  // ConstraintGeomRef 매핑
+  const mapGeomRef = (ref: { geomId: string }) => ({
+    geomId: idMap.get(ref.geomId)!,
+  });
+
+  for (const c of store.constraintStore.constraints.values()) {
+    let cloned: SketchConstraint | null = null;
+
+    switch (c.type) {
+      case "coincident":
+        if (allRefsInternal([c.pointA.geomId, c.pointB.geomId])) {
+          cloned = { type: "coincident", id: generateCloneId(), pointA: mapPointRef(c.pointA), pointB: mapPointRef(c.pointB) };
+        }
+        break;
+      case "horizontal":
+        if (allRefsInternal([c.line.geomId])) {
+          cloned = { type: "horizontal", id: generateCloneId(), line: mapGeomRef(c.line) };
+        }
+        break;
+      case "vertical":
+        if (allRefsInternal([c.line.geomId])) {
+          cloned = { type: "vertical", id: generateCloneId(), line: mapGeomRef(c.line) };
+        }
+        break;
+      // fix 구속은 복제하지 않음 (좌표 의존적이므로)
+      case "fix":
+        break;
+      case "distance":
+        if (allRefsInternal([c.pointA.geomId, c.pointB.geomId])) {
+          cloned = { type: "distance", id: generateCloneId(), pointA: mapPointRef(c.pointA), pointB: mapPointRef(c.pointB), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+        }
+        break;
+      case "equal":
+        if (allRefsInternal([c.lineA.geomId, c.lineB.geomId])) {
+          cloned = { type: "equal", id: generateCloneId(), lineA: mapGeomRef(c.lineA), lineB: mapGeomRef(c.lineB) };
+        }
+        break;
+      case "parallel":
+        if (allRefsInternal([c.lineA.geomId, c.lineB.geomId])) {
+          cloned = { type: "parallel", id: generateCloneId(), lineA: mapGeomRef(c.lineA), lineB: mapGeomRef(c.lineB) };
+        }
+        break;
+      case "perpendicular":
+        if (allRefsInternal([c.lineA.geomId, c.lineB.geomId])) {
+          cloned = { type: "perpendicular", id: generateCloneId(), lineA: mapGeomRef(c.lineA), lineB: mapGeomRef(c.lineB) };
+        }
+        break;
+      case "colinear":
+        if (allRefsInternal([c.lineA.geomId, c.lineB.geomId])) {
+          cloned = { type: "colinear", id: generateCloneId(), lineA: mapGeomRef(c.lineA), lineB: mapGeomRef(c.lineB) };
+        }
+        break;
+      case "tangent":
+        if (allRefsInternal([c.entityA.geomId, c.entityB.geomId])) {
+          cloned = { type: "tangent", id: generateCloneId(), entityA: mapGeomRef(c.entityA), entityB: mapGeomRef(c.entityB) };
+        }
+        break;
+      case "concentric":
+        if (allRefsInternal([c.circleA.geomId, c.circleB.geomId])) {
+          cloned = { type: "concentric", id: generateCloneId(), circleA: mapGeomRef(c.circleA), circleB: mapGeomRef(c.circleB) };
+        }
+        break;
+      case "equal_radius":
+        if (allRefsInternal([c.circleA.geomId, c.circleB.geomId])) {
+          cloned = { type: "equal_radius", id: generateCloneId(), circleA: mapGeomRef(c.circleA), circleB: mapGeomRef(c.circleB) };
+        }
+        break;
+      case "midpoint":
+        if (allRefsInternal([c.point.geomId, c.line.geomId])) {
+          cloned = { type: "midpoint", id: generateCloneId(), point: mapPointRef(c.point), line: mapGeomRef(c.line) };
+        }
+        break;
+      case "point_on_line":
+        if (allRefsInternal([c.point.geomId, c.line.geomId])) {
+          cloned = { type: "point_on_line", id: generateCloneId(), point: mapPointRef(c.point), line: mapGeomRef(c.line) };
+        }
+        break;
+      case "point_on_circle":
+        if (allRefsInternal([c.point.geomId, c.circle.geomId])) {
+          cloned = { type: "point_on_circle", id: generateCloneId(), point: mapPointRef(c.point), circle: mapGeomRef(c.circle) };
+        }
+        break;
+      case "radius":
+        if (allRefsInternal([c.circle.geomId])) {
+          cloned = { type: "radius", id: generateCloneId(), circle: mapGeomRef(c.circle), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+        }
+        break;
+      case "line_length":
+        if (allRefsInternal([c.line.geomId])) {
+          cloned = { type: "line_length", id: generateCloneId(), line: mapGeomRef(c.line), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+        }
+        break;
+      case "angle":
+        if (allRefsInternal([c.lineA.geomId, c.lineB.geomId])) {
+          cloned = { type: "angle", id: generateCloneId(), lineA: mapGeomRef(c.lineA), lineB: mapGeomRef(c.lineB), value: c.value, ...(c.isReference ? { isReference: true } : {}), ...(c.isAcute === false ? { isAcute: false } : {}) };
+        }
+        break;
+      case "point_line_distance":
+        if (allRefsInternal([c.point.geomId, c.line.geomId])) {
+          cloned = { type: "point_line_distance", id: generateCloneId(), point: mapPointRef(c.point), line: mapGeomRef(c.line), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+        }
+        break;
+      case "symmetric":
+        if (allRefsInternal([c.pointA.geomId, c.pointB.geomId, c.axis.geomId])) {
+          cloned = { type: "symmetric", id: generateCloneId(), pointA: mapPointRef(c.pointA), pointB: mapPointRef(c.pointB), axis: mapGeomRef(c.axis) };
+        }
+        break;
+    }
+
+    if (cloned) {
+      result.push(cloned);
+    }
+  }
+
+  return result;
+}

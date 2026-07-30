@@ -1,0 +1,8501 @@
+@use "../colors";
+@use "../fonts";
+
+// ─── Floating panel base mixins ────────────────────────────────────────────
+// 목업 의 공통 panel 디자인 (.params-panel / .material-panel / .analysis-panel
+// 등) 과 일치. input 캔버스 위 모든 floating panel (PadPocket / Revolve / Dimension /
+// FeatureParameters / PlaneDefinition / Measure / FilletChamfer / AssemblyRendering /
+// 각종 dialog) 가 base 로 include.
+@mixin input-floating-panel-base {
+  background: #2a2e34;
+  border: 1px solid #383c42;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 16px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+@mixin input-floating-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #1f2227;
+  border-bottom: 1px solid #383c42;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+@mixin input-floating-panel-title {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 700;
+  color: #f9fafb;
+  flex: 1;
+}
+
+@mixin input-floating-panel-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: #9199a1;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+
+  &:hover {
+    background: #e15554;
+    color: #fff;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@mixin input-floating-panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+// 통일 floating panel — FloatingPanel 컴포넌트가 사용. 모든 panel/dialog 공통.
+.input__floating-panel {
+  @include input-floating-panel-base;
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+  min-width: 220px;
+  font-family: var(--font-main, inherit);
+
+  &__header {
+    @include input-floating-panel-header;
+  }
+  &__title {
+    @include input-floating-panel-title;
+  }
+  &__close {
+    @include input-floating-panel-close;
+  }
+  &__body {
+    @include input-floating-panel-body;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &__footer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #1f2227;
+    border-top: 1px solid #383c42;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  // Footer 의 action button — OK / Apply / Cancel 통일. 목업 정합.
+  // primary (default): brand-fill. secondary: outline (Cancel 류).
+  &__btn {
+    height: 26px;
+    padding: 0 14px;
+    background: colors.$primary-500;
+    border: 1px solid colors.$primary-500;
+    border-radius: 4px;
+    color: colors.$white;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: colors.$primary-600;
+      border-color: colors.$primary-600;
+    }
+    &:active:not(:disabled) {
+      background: colors.$primary-700;
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    &--secondary {
+      background: transparent;
+      border-color: colors.$border-dark;
+      color: colors.$gray-100;
+
+      &:hover:not(:disabled) {
+        background: colors.$surface-dark-hover;
+        border-color: colors.$gray-500;
+      }
+      &:active:not(:disabled) {
+        background: colors.$surface-dark;
+      }
+    }
+  }
+}
+
+// `.input-canvas` 는 InputCanvas 컴포넌트의 BEM block — input 페이지 외 result 페이지도
+// 동일 컴포넌트 재사용. `.input {}` nesting 밖에 두어 모든 부모에서 동일 스타일 적용.
+.input-canvas {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  outline: none;
+
+  &__viewport {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+}
+
+// `.kinsim-edit-btn` 는 KinematicSimulationPanel 의 sub-element — input / result 양쪽 sidebar
+// 에서 사용. BEM block 으로 글로벌 정의.
+.kinsim-edit-btn {
+  // 목업 .kinsim-edit-btn 정합 — 회색(#393E48) fill, border 없음.
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  background: colors.$surface-dark-mid; // #393e48
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: colors.$gray-50;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+
+  &:hover:not(:disabled) {
+    background: colors.$surface-dark-mid-2; // #414751
+  }
+
+  &:active:not(:disabled) {
+    background: colors.$surface-dark-mid-2;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  &__icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: colors.$primary-400;
+    flex-shrink: 0;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &__plus {
+    width: 14px;
+    font-size: 14px;
+    line-height: 14px;
+    font-weight: 700;
+    color: colors.$gray-300;
+    flex-shrink: 0;
+  }
+}
+
+// `.input-spec-tree` BEM block — input / result 양쪽 페이지에서 캔버스 위 좌상단 floating
+// panel 로 사용. 부모 (`.input__content` 또는 `.result__canvas`) 가 position: relative 이라
+// absolute 가 그 위에 뜸.
+//
+// splash dark theme — spec-tree 글씨/icon 흰 계열로 정합. dark viewport 위 floating panel.
+// 모든 아이콘은 부모 color 를 cascade — path / circle / rect / line 등 element 무관.
+// 목업(.tree) 정합 — RecurDyn 식 spec tree:
+//  • 들여쓰기는 --tree-depth (TreeNode 가 주입) 로 calc — 점선 커넥터 정렬용.
+//  • 선택 = 노란 하이라이트(rgba 240,190,40,.16), hover = 화이트 오버레이(.06).
+//  • 중첩 자식은 점선 ├─ 커넥터(::before 수직 / ::after 수평 tick).
+$tree-indent-step: 14px; // depth 당 들여쓰기
+$tree-row-h: 22px; // 행 높이 (커넥터 tick 수직 중앙 정렬용)
+.input-spec-tree {
+  position: absolute;
+  top: 12px;
+  left: 8px;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: none; // Firefox
+  &::-webkit-scrollbar {
+    display: none;
+  } // Chrome/Electron
+  z-index: 10;
+
+  // 행(그룹 헤더 / 리프) 공통 — 들여쓰기 calc + hover/select 하이라이트.
+  &__group-header,
+  &__item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-height: $tree-row-h;
+    padding: 2px 4px 2px calc(8px + var(--tree-depth, 0) * #{$tree-indent-step});
+    border: none;
+    background: none;
+    border-radius: 4px;
+    @include fonts.font-style(12px, md);
+    line-height: 18px;
+    color: colors.$gray-50;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: colors.$row-hover-bg;
+    }
+  }
+
+  &__group-header {
+    font-weight: 700;
+    color: colors.$white;
+  }
+
+  &__group-items {
+    display: flex;
+    flex-direction: column;
+  }
+
+  // ── 점선 커넥터 (중첩 자식만) ───────────────────────────────────
+  // 부모 들여쓰기 위치에 수직 점선 + 행 중앙으로 수평 tick.
+  $guide-x: calc(8px + (var(--tree-depth, 1) - 1) * #{$tree-indent-step} + 6px);
+  &__group-items > &__item,
+  &__group-items > &__group {
+    position: relative;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: $guide-x;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dotted colors.$gray-600;
+      pointer-events: none;
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: $guide-x;
+      top: calc(#{$tree-row-h} / 2);
+      width: 8px;
+      border-top: 1px dotted colors.$gray-600;
+      pointer-events: none;
+    }
+
+    // 마지막 형제는 수직선을 tick 까지만 (└─).
+    &:last-child::before {
+      bottom: auto;
+      height: calc(#{$tree-row-h} / 2);
+    }
+  }
+
+  &__item {
+    &--empty {
+      color: colors.$text-muted;
+      font-style: italic;
+      cursor: default;
+    }
+
+    &--selectable {
+      color: colors.$primary-300;
+    }
+
+    // Definition shape role 별 색은 더 이상 className 전체 라벨 cascade 가 아닌 ─
+    // labelSuffix span ('[DA]' 등) 의 inline color 로만 적용 (3D face mesh 색과 정합).
+    // .input-spec-tree__item-suffix 스타일 참조.
+
+    // Linkage 하위 (joint / link / marker) 는 기본 item 색 (gray-50) 유지 — 사용자 요청으로
+    // primary-200 (linkage) / angle 오렌지 (marker) 분리 색 제거. className 자체는 hover/
+    // select 셀렉터 매칭용으로 그대로 두고 color rule 만 삭제.
+    &--obstacle {
+      color: colors.$gray-300;
+    }
+
+    &-info {
+      @include fonts.font-style(10px, md);
+      color: colors.$text-muted;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    &--hidden {
+      opacity: 0.5;
+    }
+
+    &-visibility {
+      width: 16px;
+      height: 16px;
+      background: none;
+      border: none;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: colors.$gray-400;
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+
+      &:hover {
+        color: colors.$primary-400;
+      }
+    }
+
+    &-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: colors.$gray-400;
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+
+    &-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    // construction 기하 — 점선 italic
+    &--construction {
+      color: colors.$gray-400;
+      font-style: italic;
+    }
+
+    // 참조 기하 (Absolute Axis)
+    &--ref {
+      color: colors.$gray-500;
+    }
+  }
+
+  // 선택/hover 하이라이트 — 노란 하이라이트(select) / 화이트 오버레이(hover).
+  // selected 가 hover 보다 우선 — 같은 specificity 일 때 후행 규칙이 cascade 이김.
+  // selected 를 hover 다음에 선언 + selected + hovered 동시일 때도 selected 색 유지.
+  &__item--hovered,
+  &__group-header.input-spec-tree__item--hovered {
+    background: colors.$row-hover-bg;
+  }
+  &__item--selected,
+  &__group-header.input-spec-tree__item--selected,
+  &__item--selected.input-spec-tree__item--hovered,
+  &__group-header.input-spec-tree__item--selected.input-spec-tree__item--hovered {
+    background: colors.$tree-select-bg;
+  }
+
+  // 루트("Part") 헤더 강조
+  &__group-header--root {
+    font-weight: 700;
+    color: colors.$fg-bright;
+  }
+
+  // chevron — 목업 RecurDyn 식 +/− 박스. 기본(펼침)=− (가로 막대만),
+  // .--collapsed(접힘)=+ (세로 막대 추가).
+  &__chevron {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border: 1px solid colors.$gray-600;
+    background: colors.$surface-dark-bg;
+    border-radius: 1px;
+    cursor: pointer;
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      background: colors.$gray-100;
+    }
+    // 가로 막대 (항상)
+    &::before {
+      left: 2px;
+      right: 2px;
+      top: 50%;
+      height: 1px;
+      transform: translateY(-50%);
+    }
+    // 세로 막대 (접힘일 때만 → +)
+    &::after {
+      top: 2px;
+      bottom: 2px;
+      left: 50%;
+      width: 1px;
+      transform: translateX(-50%);
+      display: none;
+    }
+    &--collapsed::after {
+      display: block;
+    }
+  }
+
+  // 그룹 헤더 카운트 뱃지
+  &__group-count {
+    @include fonts.font-style(10px, md);
+    color: colors.$gray-400;
+    margin-left: 4px;
+    font-weight: 400;
+  }
+
+  // shape labelSuffix ('[DA]' 등) — label 본문 옆 inline span. color 는 inline style
+  // (3D face mesh 색 hex). opacity 적용 X — 사용자 요청.
+  &__item-suffix {
+    margin-left: 4px;
+    flex-shrink: 0;
+  }
+}
+
+.input {
+  // workspace-sidebar 폭은 :root 에 --workspace-sidebar-width 로 정의 (components/_workspace-sidebar.scss).
+  // 여기선 그 변수를 그대로 참조.
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+
+  .input__loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: all;
+  }
+
+  .input__loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: colors.$primary-400;
+    border-radius: 50%;
+    animation: input-spin 0.8s linear infinite;
+  }
+
+  .input__loading-text {
+    color: colors.$gray-200;
+    @include fonts.font-style(sm);
+  }
+
+  @keyframes input-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  // 모드 탭 아래 row: main (toolbar + canvas + progressbar) | workspace-sidebar
+  .input__shell {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+  }
+
+  // workspace-sidebar 옆 main 영역 (column: toolbar + content + progressbar)
+  .input__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .input__content {
+    flex: 1;
+    position: relative;
+    display: flex;
+    min-height: 0;
+  }
+
+  // 공통 workspace 모드 panel — DMU Analysis / Generative Design 공유.
+  // (Optimize 는 OptimizeDrawer 의 기존 클래스 (optimization-panel__*) 사용 — embedded
+  // override 에서 이 블록과 동일한 시각 톤으로 정렬.)
+  //
+  // 공통 element:
+  //   __hint           : 패널 상단 설명 텍스트
+  //   __toggle         : 토글 버튼 (DMU 의 [2D → 3D Model] 등)
+  //   __options        : flex:1 scrollable form 영역 (Generate 가 사용)
+  //   __section        : gray-50 박스 안에 묶인 옵션 form (DMU CAD Options 등)
+  //   __section-title  : section 헤더 (uppercase sm/sm letter-spacing)
+  //   __field          : 라벨 + 컨트롤 한 줄 row
+  //   __field-input    : 숫자 입력 + 단위
+  //   __notice         : 패널 하단 안내 텍스트 (기본 gray italic)
+  //   __notice--warning: 경고 톤 (orange)
+  //   __run            : 패널의 primary 액션 버튼 (Simulate / Generate / Run)
+  .input-workspace-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    &__hint {
+      @include fonts.font-style(sm, md);
+      color: colors.$gray-600;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    &__toggle {
+      flex-shrink: 0;
+      padding: 10px;
+      border: 1px solid colors.$border-dark;
+      border-radius: 6px;
+      background: colors.$surface-dark-bg;
+      color: colors.$gray-100;
+      cursor: pointer;
+      transition:
+        background 0.15s,
+        border-color 0.15s,
+        color 0.15s;
+
+      @include fonts.font-style(md, md);
+
+      &:hover:not(:disabled) {
+        background: colors.$surface-dark-hover;
+        border-color: colors.$primary-400;
+      }
+
+      &[data-active="true"] {
+        background: colors.$primary-500;
+        color: colors.$white;
+        border-color: colors.$primary-500;
+      }
+
+      &:disabled {
+        background: colors.$surface-dark;
+        color: colors.$text-muted;
+        cursor: not-allowed;
+        border-color: colors.$border-dark-soft;
+      }
+    }
+
+    // 목업 .kinsim-3d-model-section — divider 위 + title + Build 버튼.
+    // 이전 (082 이전) iOS-style toggle 에서 primary action button 으로 변경됨.
+    .kinsim-3d-model-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    // 목업 .kinsim-build-btn — Build 3D Mechanism primary action.
+    // off 상태: brand fill (primary-500). on 상태 (data-active=true): outline
+    // dark — primary action 이 이미 일어났음을 사용자에게 알림 + Rebuild label.
+    .kinsim-build-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      height: 32px;
+      padding: 0 12px;
+      background: colors.$primary-500;
+      border: 1px solid colors.$primary-500;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      color: colors.$white;
+      cursor: pointer;
+      text-align: left;
+      transition:
+        background 0.12s ease,
+        border-color 0.12s ease;
+
+      &:hover:not(:disabled) {
+        background: colors.$primary-600;
+        border-color: colors.$primary-600;
+      }
+
+      &:active:not(:disabled) {
+        background: colors.$primary-700;
+        border-color: colors.$primary-700;
+      }
+
+      &:focus-visible {
+        outline: 2px solid colors.$primary-400;
+        outline-offset: 2px;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      // Build 가 한 번 실행된 후 (linkage-3d 상태) — 목업 정합: 회색(#393E48) fill,
+      // border 없음, 아이콘 흰색 ("Back to 2D" 상태).
+      &[data-active="true"] {
+        background: colors.$surface-dark-mid; // #393e48
+        border: none;
+        color: colors.$gray-50;
+
+        &:hover:not(:disabled) {
+          background: colors.$surface-dark-mid-2; // #414751
+        }
+
+        &:active:not(:disabled) {
+          background: colors.$surface-dark-mid-2;
+        }
+
+        .kinsim-build-btn__icon {
+          color: colors.$white;
+        }
+      }
+
+      &__icon {
+        width: 14px;
+        height: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: currentColor;
+
+        svg {
+          width: 14px;
+          height: 14px;
+        }
+      }
+
+      // 목업 "Build 3D Mechanism ↔ Back to 2D" icon swap —
+      // off: 3D icon (wireframe cube) 표시, on: 2D icon (flat square) 표시.
+      &__icon--2d {
+        display: none;
+      }
+      &[data-active="true"] &__icon--3d {
+        display: none;
+      }
+      &[data-active="true"] &__icon--2d {
+        display: inline-flex;
+      }
+    }
+
+    &__options {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    &__section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 6px;
+      background: colors.$surface-dark-hover;
+
+      &[data-disabled="true"] {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+    }
+
+    &__section-title {
+      @include fonts.font-style(sm, sm);
+      color: colors.$white;
+      font-weight: 600;
+      margin: 0 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    &__field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+
+      label {
+        @include fonts.font-style(sm, sm);
+        color: colors.$gray-100;
+        flex: 1;
+      }
+    }
+
+    &__field-input {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      input {
+        width: 60px;
+        padding: 4px 6px;
+        border: 1px solid colors.$gray-300;
+        border-radius: 4px;
+        background: colors.$surface-dark;
+        text-align: right;
+        @include fonts.font-style(sm, sm);
+
+        &:focus {
+          outline: none;
+          border-color: colors.$primary-400;
+        }
+
+        &:disabled {
+          background: colors.$gray-100;
+          color: colors.$gray-400;
+        }
+      }
+
+      span {
+        @include fonts.font-style(sm, sm);
+        color: colors.$gray-500;
+        min-width: 18px;
+      }
+    }
+
+    &__notice {
+      @include fonts.font-style(sm, sm);
+      color: colors.$gray-500;
+      margin: 0;
+      font-style: italic;
+
+      &--warning {
+        color: colors.$orange-700;
+        background: colors.$orange-100;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-style: normal;
+        flex-shrink: 0;
+      }
+    }
+
+    &__run {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      background: colors.$primary-500;
+      color: colors.$white;
+      cursor: pointer;
+      transition: background 0.15s;
+
+      @include fonts.font-style(md, md);
+
+      &:hover:not(:disabled) {
+        background: colors.$primary-600;
+      }
+
+      &:disabled {
+        background: colors.$gray-300;
+        color: colors.$gray-500;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  // 워크스페이스 모드별 사이드바 — 오른쪽 큰 panel, SideToolPanel(36px) 와 별개.
+  // splash dark theme — params-panel 패턴 (surface + surface-2 header).
+  // workspace-sidebar 의 공통 정의는 src/shared/styles/components/_workspace-sidebar.scss
+  // (.workspace-sidebar / __header / __title / __content / __placeholder).
+
+  // splash dark theme — toolbar-wb 패턴 (surface-3 bg + surface-2 separator).
+  // html 시안 정합 (목업 .toolbar-wb) — 가로 bar, button 은 icon + label
+  // 세로 배치 (라벨이 아이콘 아래). 2D 모드의 PROFILE_GROUPS / OPERATION_GROUPS dropdown
+  // 만 기존 28×28 아이콘 only 형태 유지 (별도 plan 진행 예정).
+  .input-toolbar {
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 0 12px;
+    gap: 4px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    color: colors.$gray-100;
+    min-height: 60px;
+
+    &__container {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+    }
+
+    &__separator {
+      width: 1px;
+      background: colors.$surface-dark-hover;
+      align-self: stretch;
+      margin: 4px 4px;
+    }
+
+    &__spacer {
+      flex: 1;
+    }
+
+    &__tool-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    &__btn {
+      padding: 4px 12px;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 4px;
+      background: colors.$surface-dark;
+      cursor: pointer;
+      @include fonts.font-style(12px, md);
+      color: colors.$gray-100;
+      white-space: nowrap;
+
+      &:hover:not(:disabled) {
+        background: colors.$surface-dark-hover;
+        border-color: colors.$gray-300;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      &--active {
+        background: colors.$primary-100;
+        border-color: colors.$primary-500;
+        color: colors.$primary-600;
+      }
+    }
+
+    // CATIA식 드롭다운 래퍼
+    &__dropdown-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+    }
+
+    // 하위 도구 드롭다운 화살표 (우하단, 별도 클릭 영역) — splash dark theme.
+    &__sub-arrow {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 10px;
+      height: 10px;
+      padding: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      z-index: 1;
+
+      &::after {
+        content: "";
+        position: absolute;
+        right: 1px;
+        bottom: 1px;
+        border: 4px solid transparent;
+        border-bottom-color: colors.$gray-300;
+        border-right-color: colors.$gray-300;
+      }
+
+      &:hover::after,
+      &.active::after {
+        border-bottom-color: colors.$white;
+        border-right-color: colors.$white;
+      }
+    }
+
+    // 드롭다운 메뉴 (도구 아래 팝업, 아이콘만 그리드) — splash dark theme.
+    // 안의 .tool-button 들은 input-toolbar 의 dark tool-button 룰 상속 (흰 아이콘 +
+    // hover surface-dark-hover + active primary-500).
+    &__dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 2px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      padding: 4px;
+      max-width: 200px;
+      background: colors.$surface-dark;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      z-index: 100;
+
+      // Selection filter dropdown — 항목 column 으로 stack, 버튼은 icon + label 폭에 맞춤.
+      &--labeled {
+        flex-direction: column;
+        flex-wrap: nowrap;
+
+        // base `.input .input-toolbar .tool-button` (width 28px, 0-3-0) 를 이기려면
+        // 옵션 클래스를 중복 명시해 specificity 를 0-4-0 으로 올린다 (svg override 와 동일 전략).
+        .tool-button.input-toolbar__filter-option.input-toolbar__filter-option {
+          width: auto;
+          height: auto;
+          padding: 4px 8px;
+          gap: 6px;
+          justify-content: unset;
+        }
+      }
+    }
+
+    &__filter-option-label {
+      @include fonts.font-style(12px, md);
+      color: colors.$gray-100;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    // Selection filter — icon-only 버튼. 라벨은 native title tooltip 으로만 표시.
+    // trigger 는 우하단 코너에 sketch tool dropdown (사각형 등) 의 __sub-arrow 와 동일
+    // 시각의 카렛 (border-trick triangle). 일관성 ↑.
+    &__filter-trigger {
+      position: relative; // __filter-arrow ::after 의 anchor.
+    }
+
+    &__filter-arrow {
+      position: absolute;
+      right: 1px;
+      bottom: 1px;
+      width: 10px;
+      height: 10px;
+      pointer-events: none; // trigger 전체가 click 받음 — arrow 는 시각만.
+
+      &::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        border: 4px solid transparent;
+        border-bottom-color: colors.$gray-300;
+        border-right-color: colors.$gray-300;
+      }
+
+      &.active::after {
+        border-bottom-color: colors.$white;
+        border-right-color: colors.$white;
+      }
+    }
+
+    &__filter-trigger:hover &__filter-arrow::after {
+      border-bottom-color: colors.$white;
+      border-right-color: colors.$white;
+    }
+
+    // .tool-button svg 가 28x28 forced 인데 specificity 가 같으면 source order 상 위
+    // tool-button rule 이 우선이라 svg 명시적 selector 로 override (specificity ↑).
+    &__filter-trigger svg.input-toolbar__filter-icon,
+    &__filter-option svg.input-toolbar__filter-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    // splash dark theme — tool-button 기본 svg/text 흰색, hover surface-dark-hover.
+    // SVG 의 stroke/fill 은 각 path 가 currentColor 로 직접 지정. CSS 강제 적용 시
+    // outlined 아이콘 (line/arc/hexagon 등) 에도 fill 이 들어가 어색해지므로 base rule
+    // 은 둠. 활성 상태 색상은 아래 &.active 분기에서 path 별로 override.
+    .tool-button {
+      width: 28px;
+      height: 28px;
+      background: none;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: colors.$gray-100;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      svg {
+        width: 28px;
+        height: 28px;
+      }
+
+      &__text {
+        @include fonts.font-style(11px, md);
+        font-weight: 600;
+        color: colors.$gray-100;
+        line-height: 1;
+      }
+
+      // labeled — icon 위 + label 아래 (html 시안 toolbar-wb 정합). 3D 모드 + 항상-표시
+      // 영역 (Undo/Redo/Import/Sketch toggle/RefPlane/Pad/Pocket/Revolve) 에 적용.
+      // 2D 모드의 PROFILE_GROUPS / OPERATION_GROUPS dropdown 은 기존 form 유지.
+      &--labeled {
+        width: auto;
+        min-width: 52px;
+        height: auto;
+        padding: 4px 10px;
+        flex-direction: column;
+        gap: 2px;
+
+        svg {
+          width: 24px;
+          height: 24px;
+        }
+
+        .tool-button__label {
+          @include fonts.font-style(11px, md);
+          color: colors.$gray-100;
+          line-height: 1;
+          white-space: nowrap;
+        }
+      }
+
+      &__label {
+        @include fonts.font-style(11px, md);
+        color: colors.$gray-100;
+        line-height: 1;
+      }
+
+      &:hover {
+        background: colors.$surface-dark-hover;
+      }
+
+      // (기존 generate 스타일 제거 — problem-definition 스타일 재사용)
+
+      // 활성 상태
+      &:active,
+      &.active {
+        background: colors.$primary-500;
+        // currentColor cascade — stroke-only 아이콘 (translate / scale / mirror /
+        // rotate / trim / break / offset / fillet / chamfer / profile / symmetry-move
+        // 등) 이 흰색으로 표시되도록.
+        color: colors.$white;
+
+        .tool-button__text {
+          color: colors.$white;
+        }
+
+        // icon-point: <path fill="currentColor"> (단일 dot path)
+        &.icon-point {
+          path {
+            fill: colors.$white;
+          }
+        }
+
+        // icon-rectangle: <rect stroke="currentColor"> outlined
+        &.icon-rectangle {
+          rect {
+            stroke: colors.$white;
+          }
+        }
+
+        // icon-circle: <circle stroke="currentColor"> outlined
+        &.icon-circle {
+          circle {
+            stroke: colors.$white;
+          }
+        }
+
+        &.icon-segment,
+        &.icon-arc {
+          path {
+            fill: none;
+            stroke: colors.$white;
+          }
+        }
+
+        &.icon-dimension {
+          path {
+            fill: colors.$white;
+            stroke: colors.$white;
+          }
+        }
+
+        &.icon-horizontal {
+          path {
+            stroke: colors.$red-600;
+
+            &:nth-child(2) {
+              stroke: colors.$white;
+            }
+          }
+        }
+
+        &.icon-vertical {
+          path {
+            stroke: colors.$red-600;
+
+            &:nth-child(2) {
+              stroke: colors.$white;
+            }
+          }
+        }
+
+        &.icon-coincident {
+          path {
+            &:nth-child(1),
+            &:nth-child(2) {
+              stroke: colors.$white;
+            }
+
+            &:nth-child(3),
+            &:nth-child(4) {
+              fill: colors.$red-600;
+            }
+
+            &:nth-child(5) {
+              fill: colors.$white;
+            }
+          }
+        }
+
+        &.icon-tangent,
+        &.icon-parallel,
+        &.icon-perpendicular {
+          path {
+            &:nth-child(1) {
+              stroke: colors.$red-600;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$white;
+            }
+          }
+        }
+
+        &.icon-concentric {
+          path {
+            &:nth-child(1) {
+              fill: colors.$white;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$red-600;
+            }
+          }
+        }
+
+        &.icon-colinear {
+          path {
+            &:nth-child(1),
+            &:nth-child(3) {
+              stroke: colors.$white;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$red-600;
+            }
+
+            &:nth-child(4) {
+              fill: colors.$white;
+            }
+          }
+        }
+      }
+
+      // splash 비활성 패턴 — 35% opacity (cursor 변경 X).
+      &:disabled,
+      &.disabled {
+        cursor: default;
+        opacity: 0.35;
+        background: none;
+
+        .tool-button__text {
+          color: colors.$text-muted;
+        }
+
+        // path 의 stroke / fill attribute 가 명시된 것만 색 override.
+        // 이전 base `path { stroke + fill: text-muted }` 는 fill 속성 없는 path 에도
+        // fill 강제 적용 → stroke-only 아이콘 (pad / pocket / revolve / undo / redo /
+        // reset / arc / line / hexagon 등) 의 open / closed path 가 implicit close +
+        // fill 되어 무분별 채움 발생.
+        path[stroke] {
+          stroke: colors.$text-muted;
+        }
+        path[fill] {
+          fill: colors.$text-muted;
+        }
+
+        // icon-rectangle / icon-circle 은 <rect> / <circle> element 사용 →
+        // path selector 가 닿지 않으므로 별도 override.
+        &.icon-rectangle {
+          rect {
+            stroke: colors.$text-muted;
+          }
+        }
+
+        &.icon-circle {
+          circle {
+            stroke: colors.$text-muted;
+          }
+        }
+
+        &.icon-horizontal {
+          path {
+            stroke: colors.$red-200;
+
+            &:nth-child(2) {
+              stroke: colors.$gray-300;
+            }
+          }
+        }
+
+        &.icon-vertical {
+          path {
+            stroke: colors.$red-200;
+
+            &:nth-child(2) {
+              stroke: colors.$gray-300;
+            }
+          }
+        }
+
+        &.icon-coincident {
+          path {
+            &:nth-child(1),
+            &:nth-child(2) {
+              stroke: colors.$gray-300;
+            }
+
+            &:nth-child(3),
+            &:nth-child(4) {
+              stroke: colors.$red-200;
+              fill: colors.$red-200;
+            }
+
+            &:nth-child(5) {
+              fill: colors.$gray-300;
+            }
+          }
+        }
+
+        &.icon-tangent,
+        &.icon-parallel,
+        &.icon-perpendicular {
+          path {
+            &:nth-child(1) {
+              stroke: colors.$red-200;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$gray-300;
+            }
+          }
+        }
+
+        &.icon-concentric {
+          path {
+            &:nth-child(1) {
+              fill: colors.$gray-300;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$red-200;
+            }
+          }
+        }
+
+        &.icon-colinear {
+          path {
+            &:nth-child(1),
+            &:nth-child(3) {
+              stroke: colors.$gray-300;
+            }
+
+            &:nth-child(2) {
+              stroke: colors.$red-200;
+            }
+
+            &:nth-child(4) {
+              fill: colors.$gray-300;
+            }
+          }
+        }
+      }
+    }
+
+    // Generate 스플릿 버튼 (problem-definition 동일 스타일)
+    .problem-definition-generate-button {
+      width: 142px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      border: none;
+      color: colors.$white;
+      margin-left: auto;
+
+      &__label {
+        display: flex;
+        padding: 6px 10px;
+        align-items: center;
+        flex-grow: 1;
+        height: 100%;
+        border: none;
+        border-top-left-radius: 4px;
+        border-bottom-left-radius: 4px;
+        background: colors.$primary-500;
+        color: colors.$white;
+        cursor: pointer;
+
+        &:hover {
+          background: colors.$primary-600;
+        }
+
+        &:active {
+          background: colors.$primary-700;
+        }
+
+        &:disabled {
+          color: colors.$gray-300;
+          background: colors.$gray-100;
+
+          svg {
+            path {
+              fill: colors.$gray-300;
+            }
+          }
+        }
+
+        svg {
+          width: 16px;
+          height: 16px;
+        }
+
+        span {
+          @include fonts.font-style(12px, xl);
+          margin-left: 4px;
+          font-weight: 600;
+        }
+      }
+
+      &__option-toggle {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 32px;
+        height: 32px;
+        background: colors.$primary-500;
+        border: none;
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+        border-left: 1px solid colors.$primary-200;
+        cursor: pointer;
+
+        &:hover {
+          background: colors.$primary-600;
+        }
+
+        &:active {
+          background: colors.$primary-700;
+        }
+
+        &:disabled {
+          color: colors.$gray-300;
+          background: colors.$gray-100;
+          border-left: 1px solid colors.$gray-200;
+
+          svg {
+            path {
+              fill: colors.$gray-300;
+              stroke: colors.$gray-300;
+            }
+          }
+        }
+
+        svg {
+          width: 12px;
+          height: 12px;
+
+          path {
+            fill: colors.$white;
+            stroke: colors.$white;
+          }
+        }
+      }
+    }
+
+    // Generate 옵션 드롭다운
+    .problem-definition-generate-option {
+      display: block;
+      width: 420px;
+      border-radius: 4px;
+      padding: 12px;
+      color: colors.$white;
+      transform: translateY(8px);
+      background: colors.$surface-dark;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+
+      &__header {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid colors.$gray-50;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+
+        h3 {
+          font-size: 13px;
+          font-weight: 600;
+        }
+      }
+
+      &__content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-size: 12px;
+
+        p {
+          text-align: left;
+          font-weight: 600;
+          color: colors.$gray-100;
+          margin: 0;
+        }
+
+        label {
+          font-size: 12px;
+          color: colors.$gray-600;
+          cursor: pointer;
+        }
+
+        &-time-limit {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+
+          &-input {
+            width: 70px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            border-radius: 2px;
+            border: 1px solid colors.$gray-100;
+            background: colors.$gray-20;
+
+            &-item {
+              flex-grow: 1;
+
+              input {
+                width: 100%;
+                border: none;
+                text-align: center;
+                font-size: 11px;
+                background: transparent;
+
+                &[type="number"]::-webkit-inner-spin-button,
+                &[type="number"]::-webkit-outer-spin-button {
+                  -webkit-appearance: none;
+                  margin: 0;
+                }
+              }
+            }
+          }
+        }
+
+        &-equalizer {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+
+          &-buttons {
+            display: flex;
+            justify-content: space-between;
+
+            &-select {
+              display: flex;
+              align-items: center;
+              padding: 2px;
+              gap: 2px;
+              border-radius: 2px;
+              background: colors.$surface-dark-hover;
+
+              .equalizer-select {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 55px;
+                height: 18px;
+                border-radius: 2px;
+                font-size: 10px;
+                color: colors.$gray-100;
+                cursor: pointer;
+
+                &.active {
+                  background: colors.$surface-dark;
+                  color: colors.$white;
+                  box-shadow: 0 0 1px 0 rgba(96, 102, 108, 0.4);
+                }
+              }
+            }
+
+            .equalizer-reset {
+              width: 22px;
+              height: 22px;
+              cursor: pointer;
+              border: none;
+              background: none;
+
+              svg {
+                width: 100%;
+                height: 100%;
+              }
+            }
+          }
+
+          &-box {
+            display: flex;
+            padding: 8px 0;
+            background: colors.$gray-20;
+            border-radius: 4px;
+
+            &-info {
+              width: 26px;
+              flex-shrink: 0;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              padding: 8px 0;
+
+              p {
+                text-align: center;
+                font-size: 10px;
+                margin: 0;
+              }
+            }
+
+            &-wrapper {
+              display: flex;
+              align-items: center;
+              flex-grow: 1;
+              gap: 8px;
+            }
+          }
+        }
+
+        &-checkbox {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+
+          &-box {
+            display: flex;
+
+            &-item {
+              width: 120px;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+
+              label {
+                font-size: 12px;
+                color: colors.$gray-600;
+                cursor: pointer;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 2D sketch mode — html 시안 toolbar-wb mode-2d (Office Ribbon-style 3-row mini grid).
+    // 그룹 column: 안에 3 행 grid (column-first 배치, 각 셀 = icon + label 가로 inline).
+    // 그룹 하단에 그룹명 라벨. 그룹 간 vertical separator.
+    &--sketch-mode {
+      min-height: 92px;
+      align-items: stretch;
+    }
+
+    &__rib-group {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 4px 12px;
+      position: relative;
+
+      &-grid {
+        display: grid;
+        grid-template-rows: repeat(3, auto);
+        grid-auto-flow: column;
+        grid-auto-columns: max-content;
+        gap: 2px;
+        flex: 1;
+        align-content: center;
+      }
+    }
+
+    // Linkage 그룹 — 6개 (LINKAGE_TOOLS) 와 Auto Extract / Add Marker / Preset 사이에
+    // vertical divider 로 시각 분리. 같은 그룹 (title 공유) 안에서만 사용.
+    &__rib-row {
+      display: flex;
+      align-items: stretch;
+      flex: 1;
+    }
+
+    &__rib-divider {
+      width: 1px;
+      align-self: stretch;
+      margin: 2px 8px;
+      background: colors.$border-dark-soft;
+    }
+
+    &__rib-group-title {
+      @include fonts.font-style(11px, md);
+      color: colors.$text-muted;
+      text-align: center;
+      margin-top: 4px;
+      line-height: 1;
+      border-top: 1px solid colors.$border-dark-soft;
+      padding-top: 4px;
+    }
+
+    .rib-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      padding: 0 8px;
+      background: none;
+      border: none;
+      border-radius: 3px;
+      color: colors.$gray-100;
+      cursor: pointer;
+      @include fonts.font-style(12px, md);
+      white-space: nowrap;
+      text-align: left;
+      flex-shrink: 0;
+
+      // label span — 긴 텍스트 (e.g. "Cyl. Elongated Hole") 잘림 + tooltip 으로 전체 표시.
+      > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        flex: 1;
+      }
+
+      svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+
+      &:hover:not(:disabled) {
+        background: colors.$surface-dark-hover;
+      }
+
+      &.active {
+        background: colors.$primary-500;
+        color: colors.$white;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      // sub-menu chevron 자리 확보 — rib-wrap 안에서 chevron 이 우측에 absolute.
+      &--has-sub {
+        padding-right: 16px;
+      }
+
+      // html 시안 (Add Joint dropdown) 정합 — SVG polyline ∨ 화살촉.
+      &__chevron {
+        position: absolute;
+        right: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 12px;
+        height: 12px;
+        padding: 0;
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: colors.$gray-300;
+
+        // .rib-btn svg { 14px 14px } 강제 override — chevron svg 는 8×8 유지.
+        svg {
+          width: 8px;
+          height: 8px;
+        }
+
+        &:hover,
+        &.active {
+          color: colors.$white;
+        }
+      }
+    }
+
+    // sub-menu dropdown — rib-btn 바로 아래 list 형태. 각 항목은 rib-btn 과 동일 시각.
+    // width 고정 — sub-menu 가 있는 cell (Line/Rect/Point/Preset) 은 활성 sub 에 따라 라벨
+    // 길이가 변동 (`Cyl. Elongated Hole` 같이 긴 sub 선택 시 width 폭증). 100px 로 고정 +
+    // rib-btn 내부 span 의 ellipsis 로 잘림 처리 — title 속성으로 풀 텍스트 확인 가능.
+    &__rib-wrap {
+      position: relative;
+      display: inline-flex;
+      width: 100px;
+
+      > .rib-btn {
+        width: 100%;
+      }
+    }
+
+    &__sub-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 4px;
+      background: colors.$surface-dark;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.40);
+      z-index: 100;
+    }
+  }
+
+  // `.input-spec-tree` BEM block 본체는 글로벌 정의 (`.input {}` 밖) 로 이동 — input / result
+  // 양쪽이 동일 컴포넌트 + 동일 floating 위치 (캔버스 위 좌상단) 로 사용. 부모 (`.input__content`
+  // 또는 `.result__canvas`) 가 position: relative 이므로 absolute floating overlay 가 자연 배치.
+
+  .input__pad-pocket-panel {
+    // 목업 .params-panel / .material-panel 와 동일 스타일 base.
+    // PadPocket / Revolve / Pattern / PlaneDef / Measure / FilletChamfer (3D) 공통 사용.
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+    width: 280px;
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+    &__title {
+      @include input-floating-panel-title;
+    }
+    &__close {
+      @include input-floating-panel-close;
+    }
+    &__body {
+      @include input-floating-panel-body;
+    }
+
+    &__field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    &__label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    &__input {
+      width: 100%;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+      color: #f3f4f6;
+      background: rgba(255, 255, 255, 0.05);
+      outline: none;
+
+      &:focus {
+        border-color: colors.$primary-500;
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    &__direction-group {
+      // 2x2 grid — 4 옵션 label 이 280px width 안에서 깔끔하게 분배 (flex 4 등분 시 잘림).
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+
+    &__direction-btn {
+      min-width: 0;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      font-size: 11px;
+      color: #d1d5db;
+      text-align: center;
+      white-space: nowrap;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &[data-active="true"] {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+        color: colors.$white;
+      }
+    }
+
+    &__footer {
+      display: flex;
+      gap: 6px;
+      padding: 6px 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    &__btn {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.05);
+      color: #d1d5db;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &--confirm {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+        color: colors.$white;
+
+        &:hover {
+          background: colors.$primary-600;
+        }
+      }
+
+      &--cancel {
+        // base 스타일 그대로 — hover 만 차이 없음
+      }
+    }
+  }
+
+  // Constraint Definition Dialog — 16개 constraint 를 2열 checkbox+label 로 표시.
+  .input__constraint-dialog {
+    &__grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px 12px;
+      padding: 10px 12px;
+    }
+
+    &__row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 0;
+
+      &.disabled {
+        opacity: 0.4;
+
+        // disabled 일 때 row 안 모든 element cursor default (label htmlFor 의 browser pointer 회피).
+        &,
+        & * {
+          cursor: default;
+        }
+      }
+
+      // 활성 row 의 label hover → 옆 체크박스에도 hover 스타일 적용 (체크박스-label 동기).
+      &:not(.disabled):hover {
+        .checkbox__unchecked {
+          background: colors.$gray-100;
+        }
+
+        .checkbox__checked {
+          border: 2px solid colors.$primary-600;
+        }
+      }
+    }
+
+    &__label {
+      @include fonts.font-style(md, sm);
+      color: colors.$gray-100;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &__row.disabled &__label {
+      color: colors.$text-muted;
+    }
+  }
+
+  .input__dimension-panel {
+    // 목업 .params-panel 와 동일 스타일 base.
+    @include input-floating-panel-base;
+    position: absolute;
+    z-index: 10;
+    min-width: 220px;
+    font-size: 12px;
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+    &__title {
+      @include input-floating-panel-title;
+    }
+    &__close {
+      @include input-floating-panel-close;
+    }
+    &__body {
+      @include input-floating-panel-body;
+      gap: 8px;
+    }
+
+    &__mode-toggle {
+      display: flex;
+      gap: 4px;
+    }
+
+    &__mode-btn {
+      flex: 1;
+      padding: 3px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      font-size: 11px;
+      color: #d1d5db;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &--active {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+        color: colors.$white;
+      }
+    }
+
+    &__field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    &__label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    &__input {
+      width: 100%;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+      color: #f3f4f6;
+      background: rgba(255, 255, 255, 0.05);
+      outline: none;
+
+      &:focus {
+        border-color: colors.$primary-500;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      &--error {
+        border-color: colors.$red-400;
+        color: colors.$red-400;
+      }
+    }
+
+    &__footer {
+      display: flex;
+      gap: 6px;
+      padding: 6px 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    &__btn {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.05);
+      color: #d1d5db;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &--confirm {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+        color: colors.$white;
+
+        &:hover {
+          background: colors.$primary-600;
+        }
+      }
+
+      &--cancel {
+        // 위 base 스타일 그대로 사용
+      }
+    }
+  }
+
+  .input__measure-panel {
+    &__hint {
+      @include fonts.font-style(11px, md);
+      color: colors.$gray-400;
+      font-style: italic;
+      padding: 2px 0;
+    }
+
+    &__results {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    &__result-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: colors.$surface-dark-hover;
+      border-radius: 3px;
+    }
+
+    &__result-label {
+      @include fonts.font-style(11px, md);
+      color: colors.$gray-100;
+    }
+
+    &__result-remove {
+      width: 18px;
+      height: 18px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      @include fonts.font-style(14px, md);
+      color: colors.$gray-400;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        color: colors.$red-500;
+      }
+    }
+  }
+
+  .input-sketch-toolbar {
+    position: absolute;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    background: rgba(colors.$white, 0.95);
+    border: 1px solid colors.$border-dark-soft;
+    border-radius: 6px;
+    box-shadow: 2px 4px 12px 0 rgba(0, 0, 0, 0.12);
+
+    &__titlebar {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      cursor: grab;
+      user-select: none;
+      border-bottom: 1px solid colors.$gray-200;
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      &-text {
+        @include fonts.font-style(11px, md);
+        color: colors.$gray-500;
+        font-weight: 600;
+      }
+    }
+
+    &__content {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+    }
+
+    &__group {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    &__separator {
+      width: 1px;
+      height: 20px;
+      background: colors.$gray-200;
+      margin: 0 4px;
+    }
+
+    &__btn {
+      padding: 4px 8px;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 3px;
+      background: colors.$surface-dark;
+      cursor: pointer;
+      @include fonts.font-style(11px, md);
+      color: colors.$gray-600;
+      white-space: nowrap;
+
+      &:hover:not(:disabled) {
+        background: colors.$surface-dark-hover;
+        border-color: colors.$gray-300;
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      &--active {
+        background: colors.$primary-100;
+        border-color: colors.$primary-500;
+        color: colors.$primary-600;
+      }
+    }
+  }
+
+  // Sketch Tools 입력 패널 (SpecTree 오른쪽, 드래그 가능)
+  .input__sketch-tools-panel {
+    position: absolute;
+    top: 100px;
+    left: 200px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 6px;
+    z-index: 10;
+    font-size: 12px;
+    font-family: monospace;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+
+    &--draggable {
+      // 드래그 시 position/transform은 inline style로 오버라이드됨
+    }
+
+    &__titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 16px;
+      cursor: grab;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      &-handle {
+        color: #6b7280;
+        font-size: 12px;
+        letter-spacing: -2px;
+        line-height: 1;
+      }
+    }
+
+    &__body {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+    }
+
+    &__field {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    &__label {
+      color: #9ca3af;
+      font-weight: 600;
+      min-width: 12px;
+    }
+
+    &__input {
+      width: 72px;
+      padding: 2px 6px;
+      border: 1px solid #4b5563;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      font-size: 12px;
+      font-family: monospace;
+      outline: none;
+
+      &:focus {
+        border-color: #3b82f6;
+        background: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    &__tool-name {
+      color: #fbbf24;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    &__divider {
+      width: 1px;
+      height: 16px;
+      background: #4b5563;
+      margin: 0 4px;
+    }
+
+    &__mode-group {
+      display: flex;
+      gap: 2px;
+    }
+
+    &__mode-btn {
+      padding: 2px 8px;
+      border: 1px solid #4b5563;
+      border-radius: 3px;
+      background: transparent;
+      color: #9ca3af;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 1;
+      white-space: nowrap;
+
+      &--active {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: #ffffff;
+      }
+
+      &:hover:not(&--active) {
+        border-color: #6b7280;
+        color: #d1d5db;
+      }
+    }
+  }
+
+  // 스케치 토글 패널 (하단 좌측, 드래그 가능)
+  .input__sketch-toggle-panel {
+    position: absolute;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+
+    &__titlebar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 16px;
+      padding: 0 8px;
+      cursor: grab;
+      user-select: none;
+      background: rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+      &:active {
+        cursor: grabbing;
+      }
+
+      &-handle {
+        color: #ffffff;
+        font-size: 12px;
+        letter-spacing: -2px;
+        line-height: 1;
+      }
+
+      &-text {
+        color: #ffffff;
+        font-size: 12px;
+        font-family: monospace;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+    }
+
+    &__content {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px;
+    }
+
+    &__toggle {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #6b7280;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+
+      svg {
+        width: 18px;
+        height: 18px;
+
+        line,
+        polyline,
+        rect,
+        circle {
+          stroke: #ffffff;
+        }
+
+        text {
+          fill: #ffffff;
+        }
+      }
+
+      &:hover {
+        border-color: #9ca3af;
+      }
+
+      &--active {
+        background: #3b82f6;
+        border-color: #3b82f6;
+      }
+    }
+
+    // Grid spacing / subdivisions 입력 그룹 (Grid 토글 옆)
+    &__grid-settings {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px 6px 8px;
+    }
+
+    &__grid-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #ffffff;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    &__grid-input {
+      width: 48px;
+      padding: 2px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      font-size: 11px;
+      font-family: monospace;
+      outline: none;
+
+      &:focus {
+        border-color: #3b82f6;
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+  }
+
+  // 캔버스 정보 패널 (오른쪽 아래 고정 — 스냅/선택/shape/linkage 속성)
+  // 2D sketch 모드: SceneProgressbar 가 화면 하단 (fixed, bottom: 24px) 을 차지하므로 info
+  // panel 을 progressbar 위로 올림. 사용자가 progressbar height 를 drag 로 조정 가능 —
+  // SceneProgressbar 가 --input-progressbar-height 를 useEffect 로 실시간 갱신.
+  // info panel, interactive sliders overlay, 그리고 manual Progressbar (.progressbar__container)
+  // 모두 SceneProgressbar 위로 올라가야 함.
+  &:has(.input-progressbar-container) .input-canvas__info-panel,
+  &:has(.input-progressbar-container) .input__playback-overlay {
+    bottom: calc(8px + var(--input-progressbar-height, 24px));
+  }
+  // .progressbar__container 의 기본 bottom 은 20px (shared/styles/components/progressbar.scss) — 유지하면서 위로 올림.
+  &:has(.input-progressbar-container) .progressbar__container {
+    bottom: calc(20px + var(--input-progressbar-height, 24px));
+  }
+
+  .input-canvas__info-panel {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: monospace;
+    pointer-events: none;
+    z-index: 10;
+    flex-wrap: wrap;
+
+    &__type {
+      color: #fbbf24;
+    }
+
+    &__sep {
+      color: #6b7280;
+    }
+
+    &__coord {
+      color: #ffffff;
+    }
+  }
+
+  // Connector Properties panel — 목업 .conn-panel 정합.
+  // joint 클릭 시 표시. kind 라디오 (Connector / Anchor / Rotating Input) 로
+  // ground / motor 상태 통합 분기.
+  .conn-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 16px;
+    width: 320px;
+    max-height: calc(100vh - 120px);
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    color: colors.$gray-100;
+
+    &__header {
+      @include input-floating-panel-header;
+      cursor: grab;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
+      scrollbar-width: thin;
+      scrollbar-color: colors.$border-dark colors.$surface-dark-bg;
+    }
+
+    &__actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid colors.$border-dark-soft;
+      background: colors.$surface-dark-bg;
+      flex-shrink: 0;
+    }
+  }
+
+  // Name row
+  .conn-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__label {
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      color: colors.$gray-20;
+      width: 56px;
+      flex-shrink: 0;
+    }
+  }
+
+  .conn-input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    color: colors.$white;
+    outline: 0;
+    transition: border-color 0.12s ease;
+
+    &:hover {
+      border-color: colors.$gray-500;
+    }
+    &:focus {
+      border-color: colors.$primary-500;
+    }
+    &:disabled,
+    &[disabled] {
+      color: colors.$gray-500;
+      cursor: not-allowed;
+      background: colors.$gray-900;
+    }
+  }
+
+  // Radio-section — bordered fieldset + 자식 indent.
+  .conn-section {
+    position: relative;
+    padding: 12px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+
+    &--disabled {
+      opacity: 0.55;
+      pointer-events: none;
+    }
+  }
+
+  // Radio button (label-styled)
+  .conn-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 600;
+    color: colors.$gray-20;
+
+    &__dot {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border: 2px solid colors.$gray-400;
+      border-radius: 50%;
+      background: transparent;
+      box-sizing: border-box;
+    }
+
+    &.is-active .conn-radio__dot {
+      border-color: colors.$primary-500;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: colors.$primary-500;
+        transform: translate(-50%, -50%);
+      }
+    }
+  }
+
+  // 자식 controls — radio 밑 indent
+  .conn-children {
+    margin-left: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  // Compact checkbox
+  .conn-cb {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+    font-size: 12px;
+    line-height: 18px;
+    color: colors.$gray-20;
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    &__box {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border: 2px solid colors.$gray-400;
+      border-radius: 2px;
+      background: transparent;
+      box-sizing: border-box;
+    }
+
+    &.is-checked .conn-cb__box {
+      background: colors.$primary-500;
+      border-color: colors.$primary-500;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 7px;
+        height: 3px;
+        border-left: 4px solid colors.$white;
+        border-bottom: 4px solid colors.$white;
+        transform: translate(-50%, -65%) rotate(-45deg);
+      }
+    }
+  }
+
+  // Inline label + small numeric input
+  .conn-num-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__label {
+      flex: 1;
+      font-size: 12px;
+      line-height: 18px;
+      color: colors.$gray-20;
+    }
+  }
+
+  .conn-num {
+    width: 64px;
+    height: 24px;
+    padding: 0 8px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    color: colors.$white;
+    outline: 0;
+    text-align: right;
+    flex-shrink: 0;
+
+    &:hover {
+      border-color: colors.$gray-500;
+    }
+    &:focus {
+      border-color: colors.$primary-500;
+    }
+    &:disabled {
+      color: colors.$gray-500;
+      cursor: not-allowed;
+      background: colors.$gray-900;
+    }
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  // Coordinates row
+  .conn-coord-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__label {
+      width: 92px;
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      color: colors.$gray-20;
+    }
+
+    &__sep {
+      flex: 0 0 auto;
+      font-size: 12px;
+      color: colors.$gray-300;
+      padding: 0 4px;
+    }
+  }
+
+  .conn-coord-input {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    text-align: right;
+  }
+
+  // CW/CCW segmented selector
+  .conn-dir {
+    display: flex;
+    gap: 12px;
+
+    .conn-radio {
+      font-weight: 400;
+    }
+  }
+
+  // OK / Cancel / Reset — 패널 __actions 안에서 사용 (목업 force-btn 정합).
+  // 목업은 OK / Cancel / Reset / Apply / Scope 가 모두 동일한 중립 회색 버튼 — 파란 OK,
+  // transparent Cancel 식 변형 없음. font-weight 500.
+  .force-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    height: 32px;
+    padding: 0 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+    border: 0;
+
+    // optimization mode 등에서 read-only — 명시적 disabled cursor.
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    &--ok,
+    &--cancel,
+    &--reset,
+    &--apply,
+    &--scope {
+      background: colors.$btn-neutral;
+      color: colors.$white;
+
+      &:hover {
+        background: colors.$btn-neutral-hover;
+      }
+      &:active {
+        background: colors.$btn-neutral-active;
+      }
+    }
+  }
+
+  // Driven dimension 프롬프트 (over-constrained 시 참조 치수 확인)
+  .driven-dimension-prompt {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    &__dialog {
+      position: relative;
+      width: 300px;
+      background: colors.$surface-dark;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    &__message {
+      @include fonts.font-style(12px, md);
+      color: colors.$gray-100;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    &__actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    &__btn {
+      padding: 5px 14px;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 4px;
+      cursor: pointer;
+      @include fonts.font-style(11px, md);
+      font-weight: 600;
+
+      &--confirm {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+        color: colors.$white;
+
+        &:hover {
+          background: colors.$primary-600;
+        }
+      }
+
+      &--cancel {
+        background: colors.$surface-dark;
+        color: colors.$gray-600;
+
+        &:hover {
+          background: colors.$surface-dark-hover;
+        }
+      }
+    }
+  }
+
+  // Side panel (linkage icon toolbar, right sidebar — 36px) — splash dark theme
+  &__side-panel {
+    flex-shrink: 0;
+    width: 36px;
+    height: 100%;
+    background: colors.$surface-dark;
+    border-left: 1px solid colors.$border-dark-soft;
+    color: colors.$gray-100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    // --- Toolbar 영역 ---
+    &__toolbar {
+      flex: 1;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      &-section {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid colors.$border-dark-soft;
+
+        &:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+      }
+
+      &-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: none;
+        color: colors.$gray-100;
+        cursor: pointer;
+
+        // path 강제 fill+stroke 제거 — SVG 자체 속성 (currentColor 사용 시) 을 따름.
+        // 하드코딩 색상 (linkage_icon 등) 은 그 색을 유지.
+        svg {
+          width: 16px;
+          height: 16px;
+          flex-shrink: 0;
+        }
+
+        &:hover:not(:disabled) {
+          background: colors.$surface-dark-hover;
+        }
+
+        &[data-active="true"] {
+          background: colors.$primary-500;
+          color: colors.$white;
+        }
+
+        &:disabled {
+          opacity: 0.35;
+          cursor: default;
+        }
+      }
+
+      &-dropdown {
+        min-width: 140px;
+        background: colors.$gray-900;
+        color: colors.$gray-100;
+        border: 1px solid colors.$border-dark-soft;
+      }
+
+      &-dropdown-item {
+        padding: 4px 8px;
+        font-size: 11px;
+        color: colors.$gray-200;
+
+        &:hover {
+          background: colors.$primary-500;
+          color: colors.$white;
+        }
+      }
+    }
+  }
+
+  // --- Playback Overlay (manual progressbar, interactive sliders — 캔버스 하단 floating) ---
+  // info-panel 과 동일 패턴: input__content (position: relative) 기준 absolute.
+  // SceneProgressbar 존재 시 위쪽 :has rule 이 --input-progressbar-height 만큼 들어올림.
+  .input__playback-overlay {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    color: #e5e7eb;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  .input__playback-overlay--sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 320px;
+  }
+
+  .input__playback-overlay__slider-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 48px;
+    align-items: center;
+    gap: 8px;
+
+    label {
+      font-weight: 500;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #d1d5db;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+
+    span {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #f3f4f6;
+    }
+  }
+
+  // KINEMATIC SIMULATION 공통 스타일 (.kinsim-panel__body / __section-title / .kinsim-field /
+  // .kinsim-ctrl / .kinsim-slider / .kinsim-current) 은 src/shared/styles/components/
+  // _kinematic-simulation-panel.scss 의 top-level 정의 — input WorkspaceSidebar / result
+  // ResultSidebar 둘 다 사용. 여기서는 input 페이지 전용 구조 (Edit Assembly / Loads / Timeline /
+  // footer step buttons 등) 만 유지.
+
+  // ─── Edit Assembly section + Loads / Timeline / Load actions ───
+  .kinsim-edit-assembly,
+  .kinsim-loads,
+  .kinsim-timeline,
+  .kinsim-load-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .kinsim-edit-assembly,
+  .kinsim-timeline,
+  .kinsim-load-actions {
+    padding-top: 16px;
+    border-top: 1px solid colors.$border-dark-soft;
+  }
+
+  .kinsim-loads {
+    padding-top: 0;
+  }
+
+  // `.kinsim-edit-btn` 는 KinematicSimulationPanel 의 공통 element — input/result 양쪽
+  // sidebar 에서 사용. 글로벌 위치 (`.input {}` 밖) 로 이동했음.
+
+  .kinsim-timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+
+    &__label {
+      width: 72px;
+      flex-shrink: 0;
+      font-size: 12px;
+      line-height: 14px;
+      font-weight: 400;
+      color: colors.$gray-300;
+    }
+
+    &__chart {
+      flex: 1;
+      height: 28px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark-soft;
+      border-radius: 4px;
+      overflow: visible;
+    }
+  }
+
+  // Gravity row — time-varying chart 대신 On/Off pill (constant body force).
+  .kinsim-gravity-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 4px 10px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 500;
+    color: colors.$gray-500;
+    transition:
+      background 0.16s ease,
+      border-color 0.16s ease,
+      color 0.16s ease;
+
+    &__dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: colors.$gray-500;
+      transition:
+        background 0.16s ease,
+        box-shadow 0.16s ease;
+    }
+
+    &[data-state="on"] {
+      background: rgba(59, 178, 115, 0.1);
+      border-color: rgba(59, 178, 115, 0.4);
+      color: colors.$green-500;
+
+      .kinsim-gravity-indicator__dot {
+        background: colors.$green-500;
+        box-shadow: 0 0 6px rgba(59, 178, 115, 0.5);
+      }
+    }
+  }
+
+  // ─── Footer — Next (setup) / Back + Optimization + Simulate (loads) ───
+  .kinsim-panel__footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 12px;
+    border-top: 1px solid colors.$border-dark-soft;
+    background: colors.$surface-dark-bg;
+
+    &-spacer {
+      flex: 1;
+    }
+  }
+
+  .kinsim-next-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    background: colors.$primary-500;
+    border: 0;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    color: colors.$white;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: colors.$primary-600;
+    }
+    &:active:not(:disabled) {
+      background: colors.$primary-700;
+    }
+
+    // 목업 .rqmt-next-btn disabled — gray-700 bg + gray-500 muted text.
+    &:disabled {
+      background: colors.$gray-700;
+      color: colors.$gray-500;
+      cursor: not-allowed;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .kinsim-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    background: transparent;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: colors.$gray-300;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      color 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+      color: colors.$gray-20;
+      border-color: colors.$gray-500;
+    }
+
+    &:active {
+      background: colors.$surface-dark;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    &--icon-only {
+      width: 32px;
+      padding: 0;
+      gap: 0;
+      flex-shrink: 0;
+
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+    }
+  }
+
+  // 목업 .kinsim-simulate-btn — brand-600 primary action (이전엔 green-500).
+  // STEP 2 footer 의 가장 prominent CTA. brand fill, hover/active 한 단계씩 진하게.
+  .kinsim-simulate-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    background: colors.$primary-600;
+    border: 0;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    color: colors.$white;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background 0.12s ease,
+      opacity 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: colors.$primary-700;
+    }
+    &:active:not(:disabled) {
+      background: colors.$primary-800;
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  // 목업 .generate-btn 정합 (Generative Design footer 의 Generate 버튼).
+  // full-width 38px height, disabled = #393E48 / gray-600 / not-allowed, enabled = brand /
+  // white / pointer. simulate-btn 보다 prominent CTA (full-width + larger height + brand-500).
+  .kinsim-generate-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    background: colors.$surface-dark-mid; // #393E48 (disabled 기본 톤)
+    border: 0;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 600;
+    color: colors.$gray-600;
+    cursor: not-allowed;
+    flex-shrink: 0;
+    transition: background 0.12s ease, color 0.12s ease;
+
+    &:not(:disabled) {
+      background: colors.$primary-500;
+      color: colors.$white;
+      cursor: pointer;
+    }
+    &:not(:disabled):hover { background: colors.$primary-600; }
+    &:not(:disabled):active { background: colors.$primary-700; }
+  }
+
+  // 목업 .kinsim-optimize-btn — neutral solid secondary (이전엔 blue outline).
+  // DMU STEP 2 footer 의 "Optimization" — Optimization 모드 전환 액션. primary 아닌
+  // secondary 톤 (Simulate 가 primary).
+  .kinsim-optimize-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: colors.$gray-50;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+    transition:
+      background 0.12s ease,
+      color 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: #444a51; // surface-dark-hover 보다 한 단계 진하게 (html 정합)
+      border-color: colors.$gray-500;
+      color: colors.$gray-50;
+    }
+
+    &:active:not(:disabled) {
+      background: colors.$surface-dark;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .optimization-run-provider {
+    display: none;
+  }
+
+  .optimization-requirements-step,
+  .optimization-setup-step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid colors.$border-dark-soft;
+  }
+
+  .optimization-requirements-step__section,
+  .optimization-setup-step__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid colors.$border-dark-soft;
+
+    &:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+  }
+
+  .optimization-requirements-step__section-title,
+  .optimization-setup-step__section-title {
+    margin: 0;
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 700;
+    color: colors.$gray-500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .optimization-requirements-step__button-list,
+  .optimization-requirements-step__target-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .optimization-step-btn {
+    width: 100%;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 12px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: colors.$gray-100;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    text-align: left;
+
+    &:disabled {
+      opacity: 0.45;
+      color: colors.$gray-500;
+    }
+
+    &--active {
+      border-color: rgba(colors.$primary-500, 0.7);
+      background: rgba(colors.$primary-500, 0.14);
+      color: colors.$primary-300;
+    }
+  }
+
+  .optimization-requirements-step__checker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .optimization-checker-btn {
+    justify-content: center;
+  }
+
+  .optimization-llm-box {
+    display: flex;
+    flex-direction: column;
+    min-height: 116px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 8px;
+    overflow: hidden;
+
+    &__input {
+      min-height: 86px;
+      width: 100%;
+      padding: 12px;
+      border: 0;
+      resize: none;
+      background: transparent;
+      color: colors.$gray-50;
+      font-size: 12px;
+      line-height: 17px;
+
+      &::placeholder {
+        color: colors.$gray-500;
+      }
+
+      &:focus {
+        outline: none;
+      }
+    }
+
+    &__footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 6px 8px;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    &__divider {
+      display: none;
+    }
+
+    &__send {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid colors.$border-dark;
+      border-radius: 5px;
+      background: colors.$surface-dark-hover;
+      color: colors.$gray-300;
+
+      svg {
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  .optimization-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .optimization-objective-card,
+  .optimization-constraint-card {
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 6px;
+    overflow: hidden;
+
+    &.is-collapsed {
+      .optimization-objective-card__toggle svg {
+        transform: rotate(-90deg);
+      }
+    }
+  }
+
+  .optimization-objective-card__head {
+    width: 100%;
+    min-height: 34px;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    background: colors.$surface-dark-bg;
+  }
+
+  .optimization-objective-card__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    background: transparent;
+    color: colors.$gray-300;
+
+    svg {
+      width: 12px;
+      height: 12px;
+      transition: transform 0.12s ease;
+    }
+  }
+
+  .optimization-objective-card__summary {
+    width: 100%;
+    min-height: 34px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding: 0;
+    border: 0;
+    background: colors.$surface-dark-bg;
+    color: colors.$gray-100;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .optimization-objective-card__delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    background: transparent;
+    color: colors.$gray-500;
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+
+  .optimization-objective-card__body,
+  .optimization-constraint-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid colors.$border-dark-soft;
+  }
+
+  .optimization-objective-card__row,
+  .optimization-constraint-card__row,
+  .optimization-objective-card__distance-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .optimization-objective-card__distance-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .optimization-objective-card__label,
+  .optimization-constraint-card__operator {
+    color: colors.$gray-400;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .optimization-constraint-card__value-row {
+    display: grid;
+    grid-template-columns: auto 72px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .optimization-objective-card__select,
+  .optimization-constraint-card__select,
+  .optimization-constraint-card__input,
+  .optimization-constraint-card__value {
+    min-width: 0;
+    width: 100%;
+    height: 28px;
+    padding: 0 8px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    color: colors.$gray-100;
+    font-size: 11px;
+
+    &:focus {
+      outline: none;
+      border-color: colors.$primary-500;
+    }
+  }
+
+  .optimization-constraint-static {
+    min-height: 24px;
+    color: colors.$gray-300;
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .optimization-add-link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: colors.$primary-400;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+  }
+
+  .optimization-algorithm-trigger {
+    justify-content: center;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // RQMT panel — Generative Design 모드 STEP 1 (rqmt). 목업 .rqmt-panel.
+  // .input-workspace-panel.rqmt-panel__body 가 wrapper.
+  // ─────────────────────────────────────────────────────────────────────
+  .rqmt-panel__body {
+    padding: 0;
+    gap: 16px;
+  }
+
+  .rqmt-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    // 목업 정합 — 섹션 사이 divider. 마지막 section 은 divider 없음 (시각 마무리).
+    padding-bottom: 16px;
+    border-bottom: 1px solid colors.$border-dark;
+
+    &:last-child {
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    &__heading {
+      margin: 0;
+      font-size: 14px;
+      line-height: 18px;
+      font-weight: 700;
+      color: colors.$white; // 목업 — white heading (파랑 아님)
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    &__heading-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &__check {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 2px solid colors.$border-dark;
+      border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      transition:
+        background 0.12s ease,
+        border-color 0.12s ease;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 47%;
+        left: 50%;
+        width: 4px;
+        height: 8px;
+        border-right: 2px solid transparent;
+        border-bottom: 2px solid transparent;
+        transform: translate(-50%, -55%) rotate(45deg);
+        transition: border-color 0.12s ease;
+      }
+
+      &.is-complete {
+        background: colors.$green-500;
+        border-color: colors.$green-500;
+
+        &::after {
+          border-right-color: colors.$white;
+          border-bottom-color: colors.$white;
+        }
+      }
+    }
+
+    // Chevron toggle (heading 우측) — 클릭 시 .rqmt-section.is-collapsed 토글.
+    &__toggle {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      color: colors.$gray-400;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition:
+        background 0.12s ease,
+        color 0.12s ease;
+
+      &:hover {
+        background: colors.$surface-dark-hover;
+        color: colors.$white;
+      }
+
+      svg {
+        width: 14px;
+        height: 14px;
+        transition: transform 0.2s ease;
+      }
+    }
+
+    &.is-collapsed &__toggle svg {
+      transform: rotate(-90deg);
+    }
+
+    // 접힘 시 heading 외 모든 콘텐츠 숨김 — rqmt-sub / TimelineEditor(TK) / cmp-* 모두 커버.
+    &.is-collapsed > :not(.rqmt-section__heading) {
+      display: none;
+    }
+  }
+
+  .rqmt-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &__heading {
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      color: colors.$gray-50;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      // 목업 — sub-heading 앞 accent bar 제거됨.
+    }
+  }
+
+  .rqmt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    // 목업 — Design Space / End Effector / Obstacles 버튼은 좌측 정렬, leading done-circle
+    // 없음 (활성 표시는 blue fill + border). label 왼쪽 + *Required 오른쪽.
+    .rqmt-btn {
+      position: relative;
+      width: 100%;
+      justify-content: space-between;
+      text-align: left;
+      padding: 0 12px;
+    }
+  }
+
+  .rqmt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    padding: 0 12px;
+    background: colors.$surface-dark-mid; // #393e48 (목업)
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 400;
+    color: colors.$gray-50;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease,
+      color 0.12s ease;
+
+    &:hover {
+      background: colors.$surface-dark-mid-2; // #414751
+    }
+
+    &--active {
+      background: rgba(96, 180, 235, 0.18);
+      border: 1px solid colors.$primary-400;
+      color: colors.$primary-400;
+    }
+
+    &__label {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &__required {
+      flex: 0 0 auto;
+      font-size: 10px;
+      line-height: 14px;
+      font-weight: 700;
+      color: colors.$red-500;
+      letter-spacing: 0.2px;
+      margin-left: 8px;
+    }
+  }
+
+  @at-root {
+    // ─────────────────────────────────────────────────────────────────────
+    // Feature Parameters panel — DMU Analysis 의 Edit Assembly 에서 호출.
+    // useFloatingPanelDrag("top-right", 8) 가 position / left / top 인라인 제어.
+    // canvas 우측 (DMU Analysis Panel 왼쪽) 인접 초기 위치 + header drag.
+    // Result 페이지에서도 같은 panel 을 재사용하므로 .input scope 밖으로 출력.
+    // ─────────────────────────────────────────────────────────────────────
+    .input__feature-params-panel {
+      width: 360px;
+      height: 620px;
+      max-height: calc(100vh - 120px);
+      background: colors.$surface-dark;
+      border: 1px solid colors.$surface-dark-hover;
+      border-radius: 4px;
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.4),
+        0 8px 24px rgba(0, 0, 0, 0.5),
+        0 16px 32px rgba(0, 0, 0, 0.4);
+      z-index: 21;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: colors.$gray-100;
+      font-family: var(--font-main, inherit);
+
+      // 목업 params-panel split 모드 — 좌측 220 px tree + 우측 detail.
+      &--wide {
+        width: 760px;
+      }
+
+      &__header {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: colors.$surface-dark-bg;
+        border-bottom: 1px solid colors.$surface-dark-hover;
+        cursor: grab;
+        user-select: none;
+
+        &:active {
+          cursor: grabbing;
+        }
+      }
+
+      &__title {
+        font-size: 14px;
+        line-height: 18px;
+        font-weight: 700;
+        color: colors.$gray-20;
+      }
+
+      &__close {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 0;
+        color: colors.$gray-400;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        transition:
+          background 0.12s ease,
+          color 0.12s ease;
+
+        &:hover {
+          background: colors.$red-500;
+          color: colors.$white;
+        }
+
+        svg {
+          width: 14px;
+          height: 14px;
+        }
+      }
+
+      &__body {
+        flex: 1;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        overflow-y: auto;
+
+        // 목업 .params-panel__body--split — 좌 tree + 우 detail.
+        &--split {
+          flex-direction: row;
+          gap: 0;
+          padding: 0;
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: hidden;
+        }
+      }
+
+      // 목업 .params-detail — 우측 인스턴스 정보 영역.
+      &__detail {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      &__detail-title {
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 700;
+        color: colors.$gray-50;
+        margin: 0 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid colors.$surface-dark-hover;
+      }
+
+      &__detail-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      &__detail-meta-row {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        align-items: center;
+        gap: 12px;
+      }
+
+      &__detail-meta-label {
+        font-size: 12px;
+        line-height: 18px;
+        color: colors.$gray-300;
+      }
+
+      &__detail-meta-inputwrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      &__detail-input {
+        flex: 1 1 auto;
+        height: 24px;
+        padding: 0 8px;
+        background: colors.$surface-dark-bg;
+        border: 1px solid colors.$border-dark;
+        border-radius: 3px;
+        font-family: var(--font-main, inherit);
+        font-size: 12px;
+        line-height: 18px;
+        color: colors.$gray-50;
+        outline: none;
+
+        &:focus {
+          border-color: colors.$primary-500;
+        }
+
+        &:read-only {
+          opacity: 0.85;
+        }
+      }
+
+      &__detail-edit-btn {
+        height: 24px;
+        padding: 0 10px;
+        background: colors.$surface-dark;
+        border: 1px solid colors.$border-dark;
+        border-radius: 3px;
+        font-family: var(--font-main, inherit);
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 600;
+        color: colors.$gray-50;
+        cursor: pointer;
+        transition: background 0.12s ease;
+
+        &:hover {
+          background: colors.$surface-dark-hover;
+        }
+      }
+
+      &__detail-meta-id {
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 600;
+        color: colors.$gray-50;
+      }
+
+      &__detail-section-label {
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 700;
+        color: colors.$gray-50;
+        margin: 0 0 8px;
+      }
+
+      &__detail-empty {
+        padding: 32px 16px;
+        text-align: center;
+        font-size: 12px;
+        color: colors.$gray-500;
+        margin: 0;
+      }
+
+      // 목업 .params-panel__actions — Apply / Cancel.
+      &__actions {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 16px;
+        background: colors.$surface-dark-bg;
+        border-top: 1px solid colors.$surface-dark-hover;
+      }
+
+      // 버튼 — split panel 의 __actions 안에서 사용. 목업 .force-btn 정합.
+      &__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 80px;
+        height: 32px;
+        padding: 0 16px;
+        border-radius: 4px;
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.12s ease,
+          border-color 0.12s ease,
+          color 0.12s ease;
+
+        &--ok {
+          background: colors.$primary-500;
+          border: 0;
+          color: colors.$white;
+
+          &:hover {
+            background: colors.$primary-600;
+          }
+          &:active {
+            background: colors.$primary-700;
+          }
+        }
+
+        &--cancel {
+          background: transparent;
+          border: 1px solid colors.$border-dark;
+          color: colors.$gray-50;
+
+          &:hover {
+            background: colors.$surface-dark-hover;
+            border-color: colors.$gray-500;
+          }
+
+          &:active {
+            background: colors.$gray-700;
+          }
+        }
+      }
+
+      // 목업 .params-model-list — 7 model radio group.
+      &__model-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      &__model-row {
+        display: grid;
+        grid-template-columns: 20px 44px 1fr;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 10px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        transition:
+          background 0.12s ease,
+          border-color 0.12s ease;
+
+        &:hover {
+          background: colors.$surface-dark;
+        }
+
+        &.is-selected {
+          background: rgba(51, 158, 230, 0.16);
+          border-color: colors.$primary-500;
+        }
+
+        &.is-selected .input__feature-params-panel__model-row-fields {
+          font-weight: 700;
+        }
+
+        &[aria-disabled="true"] {
+          opacity: 0.4;
+          cursor: not-allowed;
+
+          &:hover {
+            background: transparent;
+          }
+        }
+      }
+
+      // media — isometric + cross-section 두 SVG horizontal stack.
+      &__model-row-media {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 28px;
+      }
+
+      &__model-row-radio {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        margin: 0;
+        border: 1.5px solid colors.$gray-500;
+        border-radius: 50%;
+        background: transparent;
+        position: relative;
+        cursor: pointer;
+        flex-shrink: 0;
+
+        &:checked {
+          border-color: colors.$primary-500;
+        }
+
+        &:checked::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: colors.$primary-500;
+        }
+
+        &:disabled {
+          cursor: not-allowed;
+        }
+      }
+
+      // icon = side view (옆에서 본 elevation). viewBox 60×28 — 1 unit = 1 px.
+      // cross-section 과 같은 px 단위라 D 두께가 시각적으로 일치.
+      &__model-row-icon {
+        width: 44px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+
+        svg {
+          width: 44px;
+          height: 28px;
+          overflow: visible;
+        }
+      }
+
+      // cross-section — 단면 + W/D dimension. viewBox 48×48 — 1 unit = 1 px.
+      &__model-row-cross-section {
+        display: none;
+      }
+
+      // content — label/description 윗줄 + fields 아랫줄 vertical stack.
+      &__model-row-content {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      &__model-row-label-line {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      &__model-row-label {
+        flex-shrink: 0;
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 700;
+        color: colors.$gray-20;
+      }
+
+      &__model-row-description {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        line-height: 16px;
+        color: colors.$gray-300;
+      }
+
+      &__model-row-fields {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        font-weight: 400;
+      }
+
+      // 목업 .params-field — label + number input + unit + var-tag.
+      &__field {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        line-height: 18px;
+        color: colors.$gray-50;
+      }
+
+      &__field-label {
+        color: colors.$gray-300;
+      }
+
+      &__field-input {
+        width: 60px;
+        height: 22px;
+        padding: 0 6px;
+        background: colors.$surface-dark-bg;
+        border: 1px solid colors.$border-dark;
+        border-radius: 3px;
+        text-align: right;
+        font-family: var(--font-main, inherit);
+        font-size: 12px;
+        line-height: 18px;
+        color: colors.$gray-50;
+        outline: none;
+        appearance: textfield;
+        -moz-appearance: textfield;
+
+        &::-webkit-inner-spin-button,
+        &::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+
+        &:focus {
+          border-color: colors.$primary-500;
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        &--xy {
+          width: 48px;
+        }
+      }
+
+      &__field-unit {
+        color: colors.$gray-300;
+        font-size: 11px;
+      }
+
+      &__field-var-tag {
+        color: colors.$gray-500;
+        font-size: 11px;
+        font-style: italic;
+      }
+
+      &__field-sep {
+        color: colors.$gray-500;
+        font-size: 12px;
+      }
+
+      // 목업 .params-tree — 좌측 220 px feature tree.
+      &__tree {
+        width: 220px;
+        flex-shrink: 0;
+        padding: 12px 8px;
+        border-right: 1px solid colors.$surface-dark-hover;
+        background: colors.$surface-dark-bg;
+        overflow-y: auto;
+        font-size: 12px;
+        line-height: 18px;
+      }
+
+      &__tree-group-label {
+        display: block;
+        padding: 4px 6px;
+        font-family: var(--font-main, inherit);
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 700;
+        color: colors.$gray-50;
+      }
+
+      &__tree-items,
+      &__tree-leaves {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      &__tree-leaves {
+        padding-left: 16px;
+
+        &--nested {
+          padding-left: 14px;
+        }
+      }
+
+      &__tree-subgroup-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 4px 6px;
+        background: transparent;
+        border: 0;
+        border-radius: 3px;
+        font-family: var(--font-main, inherit);
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 600;
+        color: colors.$gray-50;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.12s ease;
+
+        &:hover {
+          background: colors.$surface-dark;
+        }
+      }
+
+      &__tree-chevron {
+        width: 8px;
+        height: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: colors.$gray-300;
+        flex-shrink: 0;
+        transition: transform 0.14s ease;
+
+        svg {
+          width: 8px;
+          height: 8px;
+        }
+      }
+
+      &__tree-subgroup-toggle[aria-expanded="true"]
+        .input__feature-params-panel__tree-chevron {
+        transform: rotate(90deg);
+      }
+
+      &__tree-leaf {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 4px 8px;
+        background: transparent;
+        border: 0;
+        border-radius: 3px;
+        font-size: 12px;
+        line-height: 18px;
+        color: colors.$gray-300;
+        cursor: pointer;
+        text-align: left;
+        transition:
+          background 0.12s ease,
+          color 0.12s ease;
+
+        &:hover {
+          background: colors.$surface-dark;
+          color: colors.$gray-50;
+        }
+
+        &.is-selected {
+          background: rgba(51, 158, 230, 0.18);
+          color: colors.$white;
+          font-weight: 600;
+        }
+
+        // R-Joint / P-Joint 카테고리 라벨 (li 요소, 클릭 불가).
+        &--joint-cat {
+          font-weight: 600;
+          color: colors.$gray-50;
+          cursor: default;
+          padding: 6px 8px 2px;
+
+          &:hover {
+            background: transparent;
+            color: colors.$gray-50;
+          }
+        }
+
+        &--passive {
+          color: colors.$gray-500;
+          font-style: italic;
+        }
+
+        // "All [Group]" 가상 entry — 일반 leaf 와 구분 위한 강조 (gray-50 라이트 + bold).
+        &--all-group {
+          color: colors.$gray-50;
+          font-weight: 600;
+          background: rgba(51, 158, 230, 0.04);
+
+          &:hover {
+            background: rgba(51, 158, 230, 0.12);
+            color: colors.$white;
+          }
+        }
+      }
+
+      // leaf 안의 label (좌측) + model short label (우측 회색 작은 텍스트).
+      &__tree-leaf-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      &__tree-leaf-model {
+        flex-shrink: 0;
+        font-size: 10px;
+        color: colors.$gray-500;
+        font-weight: 500;
+      }
+
+      &.input__floating-panel > .input__floating-panel__body {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 0;
+        gap: 0;
+        overflow: hidden;
+      }
+
+      &.input__floating-panel .input__floating-panel__footer {
+        padding: 12px 16px;
+        background: colors.$surface-dark-bg;
+        border-top: 1px solid colors.$surface-dark-hover;
+      }
+
+      &.input__floating-panel .input__floating-panel__btn {
+        min-width: 80px;
+        height: 32px;
+        padding: 0 16px;
+        background: #40454d;
+        border: 0;
+        border-radius: 4px;
+        color: colors.$white;
+        font-family: var(--font-main, inherit);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 500;
+
+        &:hover:not(:disabled) {
+          background: #4e545d;
+          border-color: transparent;
+        }
+
+        &:active:not(:disabled) {
+          background: #2f343b;
+        }
+
+        &:not(.input__floating-panel__btn--secondary) {
+          background: colors.$primary-500;
+
+          &:hover:not(:disabled) {
+            background: colors.$primary-600;
+          }
+
+          &:active:not(:disabled) {
+            background: colors.$primary-700;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 목업 render-panel — Assembly Rendering floating panel (DMU 옆 인접).
+// 6 mode radio (Shading Mode section). wireframe 만 즉시 3D 적용, 나머지 5 모드는 후속.
+.input__render-panel {
+  width: 280px;
+  max-height: calc(100vh - 160px);
+  background: colors.$surface-dark;
+  border: 1px solid colors.$border-dark-soft;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 16px 32px rgba(0, 0, 0, 0.4);
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: colors.$gray-100;
+
+  &__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    cursor: grab;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__title {
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 700;
+    color: colors.$gray-20;
+  }
+
+  &__close {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    color: colors.$gray-400;
+    border-radius: 4px;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      color 0.12s ease;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+      color: colors.$white;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  &__section-label {
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 700;
+    color: colors.$text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 4px 4px 0;
+  }
+
+  &__mode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark-soft;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    color: colors.$gray-50;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover {
+      background: colors.$surface-dark;
+      border-color: colors.$gray-500;
+    }
+
+    &--active {
+      border-color: colors.$primary-400;
+      background: rgba(96, 180, 235, 0.1);
+    }
+  }
+
+  &__mode-radio {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 2px solid colors.$text-muted;
+    border-radius: 50%;
+    background: transparent;
+    box-sizing: border-box;
+  }
+
+  &__mode--active &__mode-radio {
+    border-color: colors.$primary-400;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: colors.$primary-400;
+      transform: translate(-50%, -50%);
+    }
+  }
+
+  &__mode-label {
+    flex: 1;
+  }
+
+  &__mode-abbr {
+    font-size: 10px;
+    color: colors.$text-muted;
+    padding: 4px 8px;
+    background: colors.$border-dark-soft;
+    border-radius: 3px;
+  }
+}
+
+// 목업 .confirm-modal 정합 — DMU → Optimization 전환 등 단순 확인 모달.
+// 기존 Modal 컴포넌트가 backdrop 처리 → 여기는 dialog body 만 스타일.
+.confirm-modal__dialog {
+  width: 100%;
+  max-width: 400px;
+  background: colors.$surface-dark;
+  border: 1px solid colors.$border-dark;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+.confirm-modal__body {
+  padding: 24px 24px 16px;
+}
+
+.confirm-modal__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: colors.$gray-20;
+}
+
+.confirm-modal__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: colors.$gray-300;
+}
+
+.confirm-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.confirm-modal__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  height: 32px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+
+  &--cancel {
+    background: transparent;
+    border: 1px solid colors.$border-dark;
+    color: colors.$gray-20;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+    }
+    &:active {
+      background: colors.$surface-dark;
+    }
+  }
+
+  &--confirm {
+    background: colors.$primary-500;
+    border: 0;
+    color: colors.$white;
+
+    &:hover {
+      background: colors.$primary-600;
+    }
+    &:active {
+      background: colors.$primary-700;
+    }
+  }
+}
+
+// Requirement Sidebar (오른쪽, flex child)
+.input__requirement-sidebar {
+  flex-shrink: 0;
+  width: 520px;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-left: 1px solid colors.$gray-100;
+}
+
+.requirement-sidebar {
+  background: colors.$surface-dark;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid colors.$gray-100;
+  }
+
+  &__title {
+    font-size: 12px;
+    font-weight: 700;
+    color: colors.$white;
+    margin: 0;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__generate {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 4px;
+    background: colors.$primary-500;
+    color: colors.$white;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      background: colors.$primary-600;
+    }
+
+    &:active {
+      background: colors.$primary-700;
+    }
+  }
+
+  &__optimize {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 1px solid colors.$primary-500;
+    border-radius: 4px;
+    background: colors.$surface-dark;
+    color: colors.$primary-500;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      background: colors.$primary-100;
+    }
+
+    &:active {
+      background: colors.$primary-200;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+// Toolbar에 박히는 Optimize 진입 버튼 (Generate 옆)
+.optimization-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  margin-right: 4px;
+  border: 1px solid colors.$primary-500;
+  border-radius: 4px;
+  background: colors.$surface-dark;
+  color: colors.$primary-500;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  height: 28px;
+  white-space: nowrap;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    background: colors.$primary-100;
+  }
+
+  &--active {
+    background: colors.$primary-500;
+    color: colors.$white;
+    &:hover {
+      background: colors.$primary-600;
+    }
+  }
+}
+
+.modal.optimization-checker-modal {
+  top: 92px;
+  left: auto;
+  right: calc(var(--workspace-sidebar-width) + 16px);
+  transform: none;
+  width: min(540px, calc(100vw - var(--workspace-sidebar-width) - 48px));
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: colors.$gray-100;
+
+  .chk-dialog {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 150px);
+    background: colors.$surface-dark;
+    border: 1px solid colors.$border-dark;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+
+  .chk-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 10px 12px 10px 14px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  .chk-header__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: colors.$gray-20;
+  }
+
+  .chk-header__icon {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    color: colors.$primary-400;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .chk-header__close {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: colors.$gray-400;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .chk-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 18px 20px 10px;
+    overflow-y: auto;
+  }
+
+  .chk-section-title {
+    margin: 0 0 12px;
+    font-size: 15px;
+    line-height: 19px;
+    font-weight: 700;
+    color: colors.$gray-20;
+  }
+
+  .chk-subtitle {
+    margin: 18px 0 8px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 700;
+    color: colors.$gray-100;
+
+    &--first {
+      margin-top: 0;
+    }
+  }
+
+  .chk-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+
+    th,
+    td {
+      border: 1px solid colors.$border-dark;
+      padding: 6px 8px;
+      text-align: center;
+      color: colors.$gray-100;
+    }
+
+    th {
+      background: colors.$surface-dark-hover;
+      color: colors.$gray-300;
+      font-weight: 600;
+    }
+
+    th:first-child,
+    td:first-child {
+      text-align: left;
+      font-weight: 600;
+      color: colors.$gray-50;
+    }
+
+    sub {
+      font-size: 9px;
+    }
+  }
+
+  .chk-status {
+    svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+    }
+
+    &--ok {
+      color: colors.$green-500;
+    }
+  }
+
+  .chk-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 14px;
+    flex-shrink: 0;
+    border-top: 1px solid colors.$border-dark-soft;
+  }
+}
+
+.modal.optimization-target-marker-modal {
+  top: 116px;
+  left: auto;
+  right: calc(var(--workspace-sidebar-width) + 16px);
+  transform: none;
+  width: min(420px, calc(100vw - var(--workspace-sidebar-width) - 48px));
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: colors.$gray-100;
+
+  &--space {
+    width: min(470px, calc(100vw - var(--workspace-sidebar-width) - 48px));
+
+    .dvset-row {
+      align-items: start;
+    }
+  }
+
+  .dvset-modal__dialog {
+    width: 100%;
+    background: colors.$surface-dark;
+    border: 1px solid colors.$border-dark;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+
+  .dvset-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 12px 16px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  .dvset-modal__title {
+    color: colors.$gray-50;
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  .dvset-modal__close {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: colors.$gray-300;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+      color: colors.$white;
+    }
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+
+  .dvset-modal__body {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 22px 24px 8px;
+  }
+
+  .dvset-fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .dvset-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+
+  }
+
+  .dvset-row__label {
+    color: colors.$gray-100;
+    font-size: 13px;
+    line-height: 16px;
+  }
+
+  .dvset-row__input,
+  .dvset-euler__select {
+    height: 30px;
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    background: colors.$surface-dark-hover;
+    color: colors.$gray-50;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+
+    &:focus {
+      outline: 2px solid colors.$primary-500;
+      outline-offset: -1px;
+      border-color: colors.$primary-500;
+    }
+
+    &::placeholder {
+      color: colors.$gray-500;
+    }
+  }
+
+  .dvset-row__unit,
+  .dvset-xyz__tag {
+    color: colors.$gray-400;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .dvset-xyz,
+  .dvset-euler {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dvset-euler {
+    align-items: flex-start;
+  }
+
+  .dvset-euler__select {
+    flex: 0 0 88px;
+  }
+
+  .dvset-xyz {
+    flex: 1 1 auto;
+
+    &--ang {
+      flex: 1 1 auto;
+
+      .dvset-row__input {
+        padding: 0 8px;
+        text-align: center;
+      }
+    }
+  }
+
+  .dvset-xyz__cell {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .dvset-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 16px 16px;
+  }
+}
+
+.modal.optimization-algorithm-modal {
+  top: 92px;
+  left: auto;
+  right: calc(var(--workspace-sidebar-width) + 16px);
+  transform: none;
+  width: min(440px, calc(100vw - var(--workspace-sidebar-width) - 48px));
+  background: colors.$surface-dark;
+  border: 1px solid colors.$border-dark;
+  border-radius: 8px;
+  color: colors.$gray-100;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+
+  .optimization-algorithm-modal__dialog {
+    display: flex;
+    flex-direction: column;
+    height: min(680px, calc(100vh - 150px));
+    max-height: calc(100vh - 150px);
+  }
+
+  .optimization-algorithm-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 10px 12px 10px 14px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  .optimization-algorithm-modal__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 700;
+    color: colors.$gray-20;
+    letter-spacing: 0.2px;
+  }
+
+  .optimization-algorithm-modal__title-icon {
+    display: inline-flex;
+    color: colors.$primary-400;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .optimization-algorithm-modal__close {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: colors.$gray-400;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .optimization-algorithm-modal__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px 18px 18px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: colors.$border-dark colors.$surface-dark-bg;
+  }
+
+  .optimization-algorithm-modal__dropdown {
+    position: relative;
+
+    &.is-open {
+      .optimization-algorithm-modal__dropdown-trigger {
+        border-color: colors.$primary-500;
+      }
+
+      .optimization-algorithm-modal__dropdown-trigger svg {
+        transform: rotate(180deg);
+      }
+    }
+  }
+
+  .optimization-algorithm-modal__dropdown-trigger {
+    width: 100%;
+    height: 34px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 6px;
+    color: colors.$gray-50;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+
+    span {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      color: colors.$gray-400;
+      transition: transform 0.15s ease;
+    }
+  }
+
+  .optimization-algorithm-modal__dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .optimization-algorithm-modal__dropdown-group {
+    padding: 8px 8px 3px;
+    color: colors.$gray-400;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 700;
+
+    &:first-child {
+      padding-top: 2px;
+    }
+  }
+
+  .optimization-algorithm-modal__dropdown-option {
+    position: relative;
+    min-height: 32px;
+    width: 100%;
+    padding: 7px 8px 7px 22px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: colors.$gray-50;
+    font-size: 13px;
+    line-height: 18px;
+    text-align: left;
+
+    &.is-selected {
+      color: colors.$white;
+      font-weight: 600;
+
+      &::before {
+        content: "•";
+        position: absolute;
+        left: 9px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: colors.$primary-400;
+        font-size: 15px;
+        line-height: 1;
+      }
+    }
+  }
+
+  .optimization-algorithm-modal__scalarization {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .optimization-algorithm-modal__scalarization-label {
+    flex: 0 0 auto;
+    color: colors.$gray-300;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .optimization-algorithm-modal__scalarization-select {
+    flex: 1 1 auto;
+    height: 30px;
+    padding: 0 10px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 6px;
+    color: colors.$gray-50;
+    font-size: 12px;
+  }
+
+  .optimization-algorithm-modal__detail {
+    display: flex;
+    flex-direction: column;
+
+    &.is-collapsed {
+      .optimization-algorithm-modal__detail-body {
+        display: none;
+      }
+
+      .optimization-algorithm-modal__detail-toggle svg {
+        transform: rotate(-90deg);
+      }
+    }
+  }
+
+  .optimization-algorithm-modal__detail-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0 6px;
+  }
+
+  .optimization-algorithm-modal__detail-toggle,
+  .optimization-algorithm-modal__reset {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: colors.$gray-300;
+
+    svg {
+      width: 13px;
+      height: 13px;
+      transition: transform 0.12s ease;
+    }
+  }
+
+  .optimization-algorithm-modal__detail-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: colors.$gray-50;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .optimization-algorithm-modal__detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 10px;
+  }
+
+  .optimization-algorithm-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .optimization-algorithm-modal__field-label {
+    color: colors.$gray-50;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 700;
+  }
+
+  .optimization-algorithm-modal__field-desc {
+    color: colors.$gray-400;
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .optimization-algorithm-modal__field-input {
+    width: 96px;
+    height: 30px;
+    padding: 0 10px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    color: colors.$gray-50;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+
+    &:focus {
+      outline: 0;
+      border-color: colors.$primary-500;
+    }
+  }
+
+  .optimization-algorithm-modal__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 12px 16px 14px;
+    background: colors.$surface-dark-bg;
+    border-top: 1px solid colors.$border-dark-soft;
+  }
+
+  .optimization-algorithm-modal__btn {
+    min-width: 72px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    background: transparent;
+    color: colors.$gray-50;
+    font-size: 12px;
+    font-weight: 700;
+
+    &--ghost {
+      background: transparent;
+    }
+
+    &--primary {
+      border-color: colors.$primary-500;
+      background: colors.$primary-500;
+      color: colors.$white;
+    }
+  }
+}
+
+// --- Optimize Drawer (Phase E.1: 알고리즘 선택 + 옵션 form) ---
+// splash dark theme — input workspace-sidebar 와 동일 톤 (surface-dark + gray-100).
+.optimization-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  background: colors.$surface-dark;
+  border-left: 1px solid colors.$border-dark-soft;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  font-size: 12px;
+  color: colors.$gray-100;
+
+  // WorkspaceSidebar 안에 embedded — floating drawer 가 아니라 inline panel.
+  // sidebar content 가 이미 padding 16px 이라 body/footer 내부 padding 은 제거.
+  &[data-embedded="true"] {
+    position: static;
+    width: 100%;
+    height: 100%;
+    border-left: none;
+    box-shadow: none;
+    z-index: auto;
+
+    .optimization-panel__body {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .optimization-panel__section {
+      margin-bottom: 0;
+      padding-top: 12px;
+      // 위 OptimizationSetupStep 의 마지막 section (Constraints) 과 시각 분리 + panel 내
+      // section 끼리도 일관 divider — optimization-setup-step__section 의 border 패턴 정합.
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    .optimization-panel__section-title {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      color: colors.$gray-500;
+      margin: 0 0 8px;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .optimization-panel__run {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      border-radius: 4px;
+      background: colors.$primary-500;
+      font-size: 12px;
+      font-weight: 600;
+
+      &:hover:not(:disabled) {
+        background: colors.$primary-600;
+      }
+
+      &:disabled {
+        background: colors.$border-dark;
+        color: colors.$gray-500;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  &__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 16px;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: colors.$gray-20;
+    margin: 0;
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    line-height: 1;
+    color: colors.$gray-400;
+    cursor: pointer;
+    padding: 0 4px;
+
+    &:hover {
+      color: colors.$white;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: colors.$border-dark colors.$surface-dark-bg;
+    padding: 12px 16px 16px;
+  }
+
+  &__section {
+    margin-bottom: 16px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__section-title {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    color: colors.$gray-500;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 8px 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+
+    &--info {
+      color: colors.$text-muted;
+      font-style: italic;
+    }
+    &--error {
+      color: colors.$red-500;
+    }
+  }
+
+  &__label {
+    flex: 0 0 110px;
+    font-size: 12px;
+    color: colors.$gray-300;
+  }
+
+  &__select,
+  &__input {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 12px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    background: colors.$surface-dark-bg;
+    color: colors.$white;
+
+    &:focus {
+      outline: none;
+      border-color: colors.$primary-500;
+    }
+
+    &:disabled {
+      background: colors.$surface-dark;
+      color: colors.$gray-500;
+      cursor: not-allowed;
+    }
+  }
+
+  &__footer {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: colors.$surface-dark-bg;
+    border-top: 1px solid colors.$border-dark-soft;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  &__run {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 4px;
+    background: colors.$primary-500;
+    color: colors.$white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease;
+
+    &:hover {
+      background: colors.$primary-600;
+    }
+    &:active {
+      background: colors.$primary-700;
+    }
+    &:disabled {
+      background: colors.$border-dark;
+      color: colors.$gray-500;
+      cursor: not-allowed;
+    }
+  }
+
+  &__job-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: auto;
+  }
+
+  &__job-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    background: colors.$surface-dark-bg;
+    color: colors.$gray-100;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      background: colors.$surface-dark-hover;
+      border-color: colors.$gray-500;
+    }
+    &:disabled {
+      color: colors.$gray-500;
+      cursor: not-allowed;
+    }
+
+    &--danger {
+      color: colors.$red-500;
+      &:hover:not(:disabled) {
+        background: rgba(225, 85, 84, 0.1);
+        border-color: colors.$red-500;
+      }
+    }
+  }
+}
+
+// Optimize Candidates (archive solutions 카드 리스트) — dark theme
+.optimize-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 240px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: colors.$border-dark colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark-soft;
+    border-radius: 4px;
+    background: colors.$surface-dark-bg;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: colors.$gray-100;
+    border-bottom: 1px solid colors.$border-dark-soft;
+
+    &:last-child {
+      border-bottom: none;
+    }
+    &:hover {
+      background: colors.$surface-dark-hover;
+    }
+
+    &--selected {
+      background: rgba(51, 158, 230, 0.14);
+      color: colors.$primary-400;
+      font-weight: 600;
+      &:hover {
+        background: rgba(51, 158, 230, 0.2);
+      }
+    }
+  }
+
+  &__rank {
+    flex: 0 0 32px;
+    color: colors.$gray-300;
+    font-weight: 600;
+  }
+
+  &__obj {
+    flex: 1;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+  }
+
+  &__obj-val {
+    font-family: monospace;
+    color: colors.$gray-50;
+  }
+
+  &__con {
+    flex: 0 0 16px;
+    text-align: center;
+    color: colors.$red-500;
+    &--feasible {
+      color: colors.$green-500;
+    }
+  }
+}
+
+// Trajectory Info (선택된 candidate의 evaluate 결과) — dark theme
+.optimize-trajectory {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed colors.$border-dark-soft;
+
+  &__chart-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    padding: 4px 0;
+  }
+
+  &__chart-label {
+    font-size: 12px;
+    color: colors.$gray-300;
+    align-self: flex-start;
+  }
+
+  &__chart {
+    display: block;
+    border-radius: 3px;
+    background: colors.$surface-dark-bg;
+  }
+
+  &__status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: colors.$white;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  &__markers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__marker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: colors.$gray-100;
+    code {
+      font-family: monospace;
+      color: colors.$primary-400;
+    }
+  }
+}
+
+// EE Binding Form — dark theme
+.optimize-eebinding {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 8px;
+    align-items: center;
+    padding: 2px 0;
+  }
+
+  &__id {
+    font-size: 12px;
+    color: colors.$gray-100;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    small {
+      color: colors.$gray-500;
+      margin-left: 4px;
+    }
+  }
+}
+
+// Joint Box Form — dark theme
+.optimize-jointbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: colors.$gray-300;
+    padding: 4px 0;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    align-items: center;
+    padding: 2px 0;
+  }
+
+  &__id {
+    font-family: monospace;
+    font-size: 12px;
+    color: colors.$gray-100;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    small {
+      font-family: inherit;
+      color: colors.$gray-500;
+      margin-left: 4px;
+    }
+  }
+
+  &__range {
+    font-size: 12px;
+    padding: 2px 4px;
+  }
+}
+
+// Optimize Status (job 진행 상황) — dark theme
+.optimize-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: colors.$white;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  &__id {
+    margin-left: 8px;
+    color: colors.$gray-400;
+    font-size: 12px;
+  }
+
+  &__bar-wrap {
+    width: 100%;
+    height: 6px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark-soft;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 4px 0;
+  }
+
+  &__bar {
+    height: 100%;
+    transition: width 240ms ease-out;
+  }
+}
+
+// Scene Progressbar (하단) — dark theme
+.input__scene-bar {
+  flex-shrink: 0;
+  border-top: 1px solid colors.$border-dark-soft;
+  padding: 4px 8px;
+  background: colors.$surface-dark-bg;
+}
+
+// --- Timeline Editor (멀티트랙 그리드 타임라인) ---
+
+.timeline-editor {
+  font-size: 12px;
+  // Add Scene 버튼 / Scene Timeline / Error Threshold 사이 간격 (목업 TK section gap).
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  // 그리드: 라벨 열 + scene 열들 (목업 TK — dark theme)
+  &__grid {
+    display: flex;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  // 왼쪽 라벨 열
+  &__grid-labels {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid colors.$border-dark;
+  }
+
+  &__grid-label {
+    padding: 0 8px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: colors.$gray-400;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    white-space: nowrap;
+
+    &--scene {
+      background: colors.$surface-dark-bg;
+      font-weight: 700;
+      color: colors.$gray-50;
+    }
+  }
+
+  // scene 열 컨테이너 (가로 스크롤)
+  &__grid-scenes {
+    flex: 1;
+    display: flex;
+    position: relative;
+    min-width: 0;
+  }
+
+  // 수평 연결선 (scene 마커 사이만 — add 버튼 제외)
+  &__grid-connector {
+    position: absolute;
+    top: 14px;
+    left: 0;
+    right: 32px; // add 버튼 영역 제외
+    height: 1px;
+    background: colors.$border-dark;
+    z-index: 0;
+  }
+
+  // 개별 scene 열
+  &__grid-col {
+    flex: 1;
+    min-width: 36px;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    border-right: 1px solid colors.$border-dark-soft;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+    }
+
+    &.selected {
+      background: rgba(colors.$primary-500, 0.12);
+    }
+  }
+
+  // Scene 마커 (행 1)
+  &__grid-marker {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    position: relative;
+    z-index: 1;
+  }
+
+  &__grid-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: colors.$surface-dark-bg;
+    border: 2px solid colors.$border-dark;
+    color: colors.$gray-300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.12s;
+
+    .selected > .timeline-editor__grid-marker > & {
+      background: colors.$primary-500;
+      border-color: colors.$primary-500;
+      color: colors.$white;
+      box-shadow: 0 0 0 2px rgba(colors.$primary-500, 0.2);
+    }
+  }
+
+  // Grid cell input — Position X / Y / Angle (row 2~4)
+  // 각 scene 컬럼에 number input 직접 — drag 시 derive 자동 갱신, blur 시 commit.
+  &__grid-cell-input {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: stretch;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    padding: 0 2px;
+
+    input {
+      width: 100%;
+      min-width: 0;
+      height: 22px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 11px;
+      text-align: right;
+      background: transparent;
+      color: colors.$gray-50;
+
+      &::placeholder {
+        color: colors.$gray-500;
+      }
+
+      &:hover {
+        border-color: colors.$border-dark;
+        background: colors.$surface-dark-hover;
+      }
+
+      &:focus {
+        border-color: colors.$primary-400;
+        background: colors.$surface-dark-hover;
+        outline: none;
+      }
+
+      &::-webkit-inner-spin-button,
+      &::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+    }
+
+    &.filled input {
+      color: colors.$primary-300;
+      font-weight: 600;
+    }
+  }
+
+  // 트랙 인디케이터 (Scene Obstacle 행만 — Position/Angle 은 cell-input 사용)
+  &__grid-indicator {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid colors.$border-dark-soft;
+    font-size: 12px;
+    color: colors.$gray-300;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+
+    &:hover {
+      color: colors.$primary-400;
+    }
+
+    &.active {
+      color: colors.$primary-500;
+    }
+
+    // SO 구간 bar (배경 선)
+    &.bar-start,
+    &.bar-mid,
+    &.bar-end {
+      &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        height: 3px;
+        background: colors.$primary-300;
+        transform: translateY(-50%);
+        z-index: 0;
+      }
+    }
+
+    &.bar-start::after {
+      left: 50%;
+      right: 0;
+    }
+
+    &.bar-end::after {
+      left: 0;
+      right: 50%;
+    }
+
+    &.bar-mid::after {
+      left: 0;
+      right: 0;
+    }
+  }
+
+  // Add scene 열
+  &__grid-add {
+    flex-shrink: 0;
+    width: 32px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 4px;
+  }
+
+  &__add-scene {
+    width: 22px;
+    height: 22px;
+    border: 1px dashed colors.$border-dark;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    color: colors.$gray-400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+
+    &:hover {
+      border-color: colors.$primary-500;
+      color: colors.$primary-500;
+    }
+  }
+}
+
+// ── Generate 버튼 + 옵션 + 모달 (problem-definition에서 포팅) ──────────────────
+
+.input {
+  .generative-design-button {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    border: none;
+    color: colors.$white;
+
+    &__label {
+      display: flex;
+      padding: 0 8px;
+      align-items: center;
+      flex-grow: 1;
+      height: 100%;
+      border-top-left-radius: 4px;
+      border-bottom-left-radius: 4px;
+      background: colors.$primary-500;
+      &:hover {
+        background: colors.$primary-600;
+      }
+      &:active {
+        background: colors.$primary-700;
+      }
+      &:disabled {
+        color: colors.$gray-300;
+        background: colors.$gray-100;
+        svg path {
+          fill: colors.$gray-300;
+        }
+      }
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+      span {
+        @include fonts.font-style(12px, md);
+        margin-left: 4px;
+      }
+    }
+
+    &__option-toggle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 28px;
+      height: 28px;
+      background: colors.$primary-500;
+      border-top-right-radius: 4px;
+      border-bottom-right-radius: 4px;
+      border-left: 1px solid colors.$primary-200;
+      &:hover {
+        background: colors.$primary-600;
+      }
+      &:active {
+        background: colors.$primary-700;
+      }
+      &:disabled {
+        color: colors.$gray-300;
+        background: colors.$gray-100;
+        border-left: 1px solid colors.$gray-200;
+        svg path {
+          fill: colors.$gray-300;
+          stroke: colors.$gray-300;
+        }
+      }
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+      svg path {
+        fill: colors.$white;
+        stroke: colors.$white;
+      }
+    }
+  }
+
+  .generative-design-option {
+    // WorkspaceSidebar 안 inline panel — dark theme (surface-dark + gray-100).
+    // DMU panel 의 CAD Options 와 톤 통일.
+    display: block;
+    width: 100%;
+    padding: 0;
+    color: colors.$gray-100;
+
+    &__header {
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid colors.$border-dark-soft;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+
+      h3 {
+        font-size: 12px;
+        line-height: 16px;
+        color: colors.$gray-500;
+        font-weight: 600;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+    }
+
+    &__content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      p {
+        text-align: left;
+        font-size: 12px;
+        line-height: 16px;
+        color: colors.$gray-100;
+        margin: 0;
+      }
+
+      &-equalizer {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        &-buttons {
+          display: flex;
+          justify-content: space-between;
+          &-select {
+            display: flex;
+            align-items: center;
+            padding: 2px;
+            gap: 2px;
+            border-radius: 2px;
+            background: colors.$surface-dark-bg;
+            .equalizer-select {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 55px;
+              height: 18px;
+              border-radius: 2px;
+              font-size: 12px;
+              color: colors.$gray-300;
+              cursor: pointer;
+              &.active {
+                background: colors.$primary-500;
+                color: colors.$white;
+              }
+            }
+          }
+          .equalizer-reset {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: colors.$gray-100;
+            svg {
+              width: 100%;
+              height: 100%;
+            }
+          }
+        }
+        &-box {
+          display: flex;
+          padding: 8px 0;
+          background: colors.$surface-dark-bg;
+          border: 1px solid colors.$border-dark-soft;
+          border-radius: 4px;
+          &-info {
+            width: 26px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px 0;
+            p {
+              text-align: center;
+            }
+          }
+          &-wrapper {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            gap: 8px;
+          }
+        }
+      }
+
+      &-time-limit {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        &-input {
+          width: 70px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          border-radius: 4px;
+          border: 1px solid colors.$border-dark;
+          background: colors.$surface-dark-bg;
+          &-item {
+            flex-grow: 1;
+            input {
+              width: 100%;
+              border: none;
+              text-align: center;
+              background: transparent;
+              color: colors.$white;
+              font-size: 12px;
+              outline: none;
+              &[type="number"]::-webkit-inner-spin-button,
+              &[type="number"]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+              }
+            }
+          }
+        }
+      }
+
+      &-model {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        &-toggle-button {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 144px;
+          height: 28px;
+          padding: 4px 8px;
+          background: colors.$surface-dark-bg;
+          color: colors.$gray-100;
+          border-radius: 4px;
+          border: 1px solid colors.$border-dark;
+          font-size: 12px;
+          svg {
+            width: 12px;
+            height: 12px;
+          }
+        }
+        &-select {
+          &-box {
+            display: block;
+            padding: 4px;
+            background: colors.$surface-dark;
+            border: 1px solid colors.$border-dark;
+          }
+          &-item {
+            width: 100%;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            text-align: left;
+            border-radius: 4px;
+            padding: 6px 10px 6px 8px;
+            color: colors.$gray-100;
+            font-size: 12px;
+            &:hover {
+              background: colors.$surface-dark-hover;
+            }
+          }
+        }
+      }
+
+      &-checkbox {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        &-box {
+          // 360px sidebar 안에서 3 개 (Links 4/6/8) 가 안 넘치도록 wrap + flex-grow.
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 12px;
+          &-item {
+            flex: 1 1 auto;
+            min-width: 100px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+          }
+        }
+      }
+    }
+  }
+
+  .generative-design-status-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 614px;
+    padding: 24px 20px 30px;
+
+    &__header {
+      &-timeline {
+        color: colors.$gray-500;
+        text-align: center;
+        h1 {
+          // modal background 가 white 이므로 h1 도 어두운 색으로. 이전 splash dark theme
+          // migration 누락 부분 — gray-100 이 거의 흰색이라 백그라운드와 안 구분되던 문제.
+          color: colors.$gray-700;
+          @include fonts.font-style(32px, md);
+        }
+      }
+      &-progress {
+        width: 100%;
+        &-container {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          p {
+            width: 30px;
+            flex-shrink: 0;
+            color: colors.$gray-600;
+          }
+        }
+        &-bar {
+          flex: 1;
+          height: 14px;
+          border-radius: 30px;
+          background: colors.$surface-dark-hover;
+          &-fill {
+            height: 14px;
+            border-radius: 30px;
+            background: linear-gradient(
+              90deg,
+              #5f31bb -19.32%,
+              #2591d8 12.84%,
+              #339ee6 32.24%,
+              #06b6d4 92.24%,
+              #a7fbf2 145.25%
+            );
+          }
+        }
+      }
+      &-generate-img {
+        height: 18px;
+        img {
+          height: 18px;
+        }
+      }
+      &-info {
+        padding-top: 12px;
+        p span {
+          font-weight: 700;
+        }
+      }
+    }
+
+    &__content {
+      padding: 10px;
+      border-top: 1px solid colors.$gray-100;
+      &-container {
+        display: block;
+        border: 1px solid colors.$gray-100;
+        border-radius: 4px;
+      }
+      &-toggle-button {
+        justify-content: flex-end;
+        align-items: center;
+        height: 34px;
+        padding: 8px 10px;
+        gap: 2px;
+      }
+      &-table {
+        padding: 8px 4px;
+        flex: 1;
+        &-container {
+          margin-top: 10px;
+          display: flex;
+          border: 1px solid colors.$gray-100;
+          border-radius: 4px;
+        }
+        &-header {
+          padding: 0 8px;
+          border-bottom: 1px solid colors.$gray-50;
+          &-row {
+            height: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: colors.$gray-600;
+            p:last-child {
+              width: 90px;
+              padding-left: 8px;
+              border-left: 1px solid colors.$gray-50;
+            }
+          }
+        }
+        &-body {
+          display: flex;
+          flex-direction: column;
+          &-row {
+            padding: 2px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            p {
+              display: flex;
+              align-items: center;
+              height: 100%;
+              &:last-child {
+                width: 88px;
+              }
+            }
+          }
+        }
+        &:first-child {
+          border-right: 1px solid colors.$gray-50;
+        }
+      }
+    }
+
+    &__footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 16px;
+      button {
+        padding: 0 12px;
+        min-width: 107px;
+      }
+    }
+  }
+
+  .generative-design-cancel-modal {
+    width: 504px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    &__buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 10px;
+      button {
+        min-width: 77px;
+        padding: 0 12px;
+      }
+    }
+  }
+
+  .generative-design-confirm-modal {
+    width: 460px;
+    padding: 20px;
+    border-radius: 4px;
+    &__text {
+      p {
+        color: colors.$gray-600;
+      }
+      ul {
+        margin-top: 8px;
+        padding-left: 20px;
+        list-style-type: disc;
+        li {
+          list-style-type: disc;
+        }
+      }
+    }
+    &__buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 10px;
+      button {
+        width: 77px;
+      }
+    }
+  }
+}
+
+// ── Scene Progressbar (problem-definition에서 포팅) ──────────────────
+
+.input {
+  // .input__main 의 column flex 마지막 child — toolbar/canvas 와 같은 column, sidebar 옆까지는 안 감.
+  // 이전엔 `.input` 직접 child + position: fixed bottom 이었으나 새 layout (082) 에서 main 안으로.
+  .input-progressbar-container {
+    position: fixed;
+    bottom: 24px;
+    left: 0;
+    // workspace-sidebar panel 침범 방지 — 같은 var 로 동기화.
+    right: var(--workspace-sidebar-width);
+    display: flex;
+    flex-direction: column;
+    min-height: 24px;
+    // splash dark theme — surface-dark base
+    background: colors.$surface-dark;
+    color: colors.$gray-100;
+    z-index: 10;
+  }
+
+  .input-progressbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    width: 100%;
+    height: 24px;
+    background: colors.$surface-dark-bg;
+    color: colors.$gray-100;
+    white-space: nowrap;
+
+    &__play-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 12px;
+    }
+
+    button {
+      border: none;
+      background: none;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+      padding: 2px;
+
+      svg {
+        width: 100%;
+        height: 100%;
+
+        path {
+          fill: colors.$white;
+          stroke: colors.$white;
+        }
+
+        rect {
+          fill: colors.$white;
+        }
+      }
+    }
+
+    &__section-toggle {
+      border-left: 1px solid colors.$border-dark-soft;
+    }
+  }
+
+  .input-scenes-selection {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    flex-grow: 1;
+    min-height: 140px;
+    padding: 10px 16px 0;
+    overflow-x: scroll;
+    white-space: nowrap;
+
+    &__item {
+      height: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 4px;
+      margin-right: 20px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid colors.$border-dark-soft;
+      box-shadow: 1px 1px 8px 0 rgba(0, 0, 0, 0.4);
+      position: relative;
+      background: colors.$surface-dark-bg;
+
+      &:hover {
+        .input-scenes-selection__item-buttons {
+          display: block;
+        }
+      }
+
+      &--active {
+        border: 2px solid colors.$primary-500;
+
+        .input-scenes-selection__item-footer {
+          background: rgba(51, 158, 230, 0.2);
+        }
+      }
+
+      &-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        border-radius: 4px;
+        background: colors.$surface-dark;
+        overflow: hidden;
+      }
+
+      &-footer {
+        position: absolute;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.1);
+        width: 100%;
+        height: 18px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        p {
+          @include fonts.font-style(12px, xl);
+        }
+      }
+
+      &-buttons {
+        display: none;
+
+        button {
+          position: absolute;
+          top: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          transform: translateY(-50%);
+          cursor: pointer;
+
+          svg {
+            width: 16px;
+            height: 16px;
+
+            path {
+              fill: colors.$white;
+              stroke: colors.$white;
+            }
+          }
+
+          &#prev-button {
+            left: -8px;
+          }
+
+          &#next-button {
+            right: -8px;
+          }
+
+          &#delete-button {
+            top: 12px;
+            right: 8px;
+            border-radius: 6px;
+            background: rgba(48, 51, 54, 0.16);
+
+            svg {
+              width: 14px;
+              height: 14px;
+
+              path {
+                stroke: colors.$black;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    &__add-button {
+      height: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark-soft;
+      color: colors.$gray-100;
+
+      svg path {
+        stroke: colors.$gray-100;
+      }
+
+      &:hover {
+        border: 1px solid colors.$primary-400;
+        background: colors.$surface-dark;
+
+        svg {
+          path {
+            stroke: colors.$primary-300;
+          }
+        }
+      }
+
+      svg {
+        width: 24px;
+        height: 24px;
+
+        path {
+          stroke: colors.$gray-300;
+        }
+      }
+    }
+  }
+
+  // ─── Material Properties Library 패널 — 목업 .material-panel 정합 ───
+  .material-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 320px;
+    max-height: calc(100vh - 120px);
+    z-index: 21;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    // Apply to scope dropdown — header 아래 별도 row. 5 옵션 (Whole / 4 group).
+    &__scope-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid colors.$border-dark-soft;
+      background: colors.$surface-dark-bg;
+    }
+
+    &__scope-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: colors.$gray-300;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+
+    &__scope-select {
+      flex: 1 1 auto;
+      height: 28px;
+      padding: 0 10px;
+      background: colors.$surface-dark;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-50;
+      font-size: 12px;
+      cursor: pointer;
+
+      &:focus {
+        outline: none;
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__custom-row {
+      padding: 8px 16px 12px;
+      border-top: 1px solid colors.$border-dark;
+    }
+
+    &__actions {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid colors.$border-dark;
+      background: colors.$surface-dark-bg;
+    }
+  }
+
+  .material-library {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .material-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+
+    &:hover {
+      background: colors.$surface-dark-hover;
+      border-color: colors.$gray-500;
+    }
+
+    // draft 선택 (사용자가 클릭만 하고 Apply 안 누른 상태) — 파란 outline.
+    &.is-active {
+      background: rgba(51, 158, 230, 0.1);
+      border-color: colors.$primary-500;
+
+      .material-card__name {
+        color: colors.$primary-400;
+      }
+    }
+
+    // 실제 atom 에 commit 된 (Applied) material — 우상단 badge + 진한 outline.
+    &.is-applied {
+      border-color: colors.$primary-400;
+
+      &.is-active {
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__applied-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      padding: 2px 6px;
+      background: colors.$primary-500;
+      color: colors.$white;
+      border-radius: 2px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    &__name {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      color: colors.$white;
+    }
+
+    &__props {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 10px;
+      line-height: 14px;
+      color: colors.$gray-300;
+    }
+
+    &__key {
+      display: inline-block;
+      width: 14px;
+      color: colors.$gray-500;
+      font-style: italic;
+    }
+  }
+
+  .material-custom-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px dashed colors.$border-dark;
+    border-radius: 4px;
+    color: colors.$gray-300;
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: colors.$primary-500;
+      color: colors.$gray-100;
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+
+  // ─── Custom Material Properties dialog — 목업 .custom-mat-panel 정합 ───
+  // Material Library 옆 (left) 에 표시되는 별개 floating dialog. Name + E / ν / ρ form
+  // + Reset / OK / Cancel.
+  .custom-mat-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 360px;
+    width: 242px;
+    max-height: calc(100vh - 120px);
+    z-index: 22;
+    display: none;
+    flex-direction: column;
+    font-family: inherit;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    &__actions {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    &__actions-group {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .custom-mat-section {
+    position: relative;
+    padding: 16px 12px 12px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+
+    &__legend {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      padding: 0 4px;
+      background: colors.$surface-dark;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      color: colors.$gray-50;
+    }
+  }
+
+  .custom-mat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    &__label {
+      flex: 0 0 130px;
+      font-size: 12px;
+      line-height: 16px;
+      color: colors.$gray-300;
+      min-width: 0;
+    }
+
+    &__sym {
+      font-style: italic;
+      color: colors.$gray-500;
+      margin-left: 4px;
+    }
+
+    &__input {
+      flex: 1 1 0;
+      width: 0;
+      min-width: 70px;
+      height: 28px;
+      padding: 0 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      color: colors.$gray-50;
+      text-align: right;
+      box-sizing: border-box;
+
+      &--text {
+        text-align: left;
+      }
+
+      &::placeholder {
+        color: colors.$gray-600;
+      }
+
+      &:focus {
+        outline: 0;
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__unit {
+      flex: 0 0 auto;
+      min-width: 50px;
+      font-size: 10px;
+      line-height: 14px;
+      color: colors.$gray-500;
+      text-align: left;
+    }
+  }
+
+  // ─── Add Marker by Coordinate (.mcoord-panel) — 목업 정합 ───
+  .mcoord-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 280px;
+    z-index: 22;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    &__actions {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+  }
+
+  .mcoord-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+
+    &__label {
+      color: colors.$gray-300;
+    }
+    &__value {
+      color: colors.$gray-50;
+      font-weight: 600;
+    }
+    // Native dropdown (result 페이지의 linkSelectMode="dropdown") — dark theme select.
+    &__select {
+      appearance: none;
+      flex: 1;
+      background: colors.$surface-dark-mid;
+      color: colors.$gray-50;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      padding: 4px 22px 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' fill='none' stroke='%23b1b8be' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='2,3 4,5 6,3'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 6px center;
+      background-size: 8px 8px;
+
+      &:focus {
+        outline: 1px solid colors.$primary-500;
+        outline-offset: -1px;
+      }
+      option {
+        background: colors.$surface-dark;
+        color: colors.$gray-50;
+      }
+    }
+
+    // Pick from viewport 버튼 — 클릭 시 viewport link click 대기. 미선택 / 활성 시
+    // placeholder italic, 선택 후엔 link label (L1/L2/…).
+    &__pick-btn {
+      appearance: none;
+      flex: 1;
+      text-align: left;
+      background: colors.$surface-dark-mid;
+      color: colors.$gray-50;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &[data-empty="true"] {
+        color: colors.$gray-300;
+        font-style: italic;
+        font-weight: 400;
+      }
+      &[data-active="true"] {
+        outline: 1px solid colors.$primary-500;
+        outline-offset: -1px;
+      }
+      &:hover {
+        background: colors.$surface-dark;
+      }
+    }
+  }
+
+  .mcoord-section {
+    position: relative;
+    padding: 16px 12px 12px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &__legend {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      padding: 0 4px;
+      background: colors.$surface-dark;
+      font-size: 12px;
+      font-weight: 700;
+      color: colors.$gray-50;
+    }
+  }
+
+  .mcoord-coord-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__label {
+      flex: 0 0 24px;
+      font-size: 12px;
+      font-weight: 700;
+      color: colors.$gray-200;
+
+      &--x {
+        color: #e15554;
+      }
+      &--y {
+        color: #3bb273;
+      }
+      &--z {
+        color: #60b4eb;
+      }
+    }
+
+    &__input-with-unit {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      padding-right: 8px;
+
+      &:focus-within {
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__input--bare {
+      flex: 1;
+      min-width: 0;
+      height: 26px;
+      padding: 0 8px;
+      background: transparent;
+      border: 0;
+      color: colors.$gray-50;
+      font-family: inherit;
+      font-size: 12px;
+      text-align: right;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: 0;
+      }
+    }
+
+    &__input-unit {
+      font-size: 10px;
+      color: colors.$gray-500;
+      margin-left: 4px;
+    }
+  }
+
+  // ─── Marker Properties (.mprops-panel) — 목업 정합 ───
+  .mprops-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 420px;
+    max-height: calc(100vh - 120px);
+    z-index: 23;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      font-size: 13px;
+      color: colors.$gray-50;
+      flex: 1;
+
+      &-name {
+        font-weight: 700;
+      }
+
+      &-unit {
+        font-weight: 400;
+        color: colors.$gray-400;
+        margin-left: 8px;
+        font-size: 11px;
+      }
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    &__actions {
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    &__actions-spacer {
+      flex: 1;
+    }
+  }
+
+  .mprops-tabs {
+    display: flex;
+    gap: 0;
+    background: colors.$surface-dark-bg;
+    border-bottom: 1px solid colors.$border-dark-soft;
+  }
+
+  .mprops-tab {
+    flex: 1;
+    height: 32px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: colors.$gray-400;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+
+    &:hover {
+      color: colors.$gray-100;
+    }
+
+    &.is-active {
+      color: colors.$primary-400;
+      border-bottom-color: colors.$primary-500;
+    }
+  }
+
+  .mprops-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mprops-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--row {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &--triple {
+      gap: 6px;
+    }
+
+    &--checkbox {
+      gap: 6px;
+    }
+
+    &--with-suffix {
+      gap: 4px;
+    }
+
+    &__label {
+      flex: 0 0 130px;
+      font-size: 12px;
+      color: colors.$gray-300;
+    }
+
+    &__input,
+    &__select {
+      flex: 1 1 0;
+      min-width: 0;
+      height: 26px;
+      padding: 0 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-50;
+      font-family: inherit;
+      font-size: 12px;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: 0;
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__input--small {
+      flex: 0 0 80px;
+    }
+
+    &__input--color {
+      flex: 0 0 60px;
+      padding: 2px;
+      height: 28px;
+    }
+
+    &__select--small {
+      flex: 0 0 110px;
+    }
+
+    &__textarea {
+      width: 100%;
+      padding: 6px 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-50;
+      font-family: inherit;
+      font-size: 12px;
+      resize: vertical;
+
+      &:focus {
+        outline: 0;
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__btn {
+      flex: 0 0 28px;
+      height: 26px;
+      background: colors.$surface-dark-hover;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-100;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:hover {
+        background: colors.$gray-500;
+      }
+    }
+
+    // viewport link pick 버튼 (parentRefFrame / motherBody) — input 자리 차지하되
+    // text-align:left + placeholder italic 으로 PlaneDefinition 의 Reference 패턴 정합.
+    &__pick-btn {
+      appearance: none;
+      text-align: left;
+      cursor: pointer;
+      font-weight: 600;
+
+      &[data-empty="true"] {
+        color: colors.$gray-300;
+        font-style: italic;
+        font-weight: 400;
+      }
+      &[data-active="true"] {
+        border-color: colors.$primary-500;
+      }
+      &:hover {
+        background: colors.$surface-dark-hover;
+      }
+    }
+
+    &__checkbox {
+      width: 14px;
+      height: 14px;
+      accent-color: colors.$primary-500;
+    }
+  }
+
+  .mprops-fieldset {
+    position: relative;
+    padding: 16px 12px 12px;
+    border: 1px solid colors.$border-dark;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &__legend {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      padding: 0 4px;
+      background: colors.$surface-dark;
+      font-size: 11px;
+      font-weight: 700;
+      color: colors.$gray-200;
+    }
+  }
+
+  .mprops-unit-grid {
+    display: flex;
+    gap: 12px;
+
+    &__col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    &__presets {
+      flex: 0 0 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+
+  .mprops-preset-btn {
+    height: 22px;
+    background: colors.$surface-dark-hover;
+    border: 1px solid colors.$border-dark;
+    border-radius: 3px;
+    color: colors.$gray-100;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: colors.$gray-500;
+    }
+  }
+
+  // ─── Gravity Panel (.gravity-panel) — 목업 정합 ───
+  // root / header / title / close 는 input__floating-panel base mixin 통일.
+  .gravity-panel {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 300px;
+    max-height: calc(100vh - 120px);
+    z-index: 22;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      width: 100%;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    &__col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    &__actions {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid colors.$border-dark-soft;
+    }
+
+    &__actions-group {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  // 목업 정합 — fieldset 박스 보더 없이 legend 라벨만 상단에 (params-section 식).
+  .gravity-section {
+    position: relative;
+    padding: 16px 0 0;
+    margin: 0;
+    border: none;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+    min-inline-size: 0;
+    width: 100%;
+
+    &__legend {
+      position: absolute;
+      top: -8px;
+      left: 0;
+      padding: 0;
+      background: colors.$surface-dark;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      color: colors.$gray-50;
+    }
+  }
+
+  .gravity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    &__label {
+      flex: 0 0 100px;
+      min-width: 0;
+      font-size: 12px;
+      line-height: 16px;
+      color: colors.$gray-300;
+    }
+
+    &__input,
+    &__select {
+      height: 28px;
+      padding: 0 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-50;
+      font-family: inherit;
+      font-size: 12px;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: 0;
+        border-color: colors.$primary-500;
+      }
+    }
+
+    &__input {
+      flex: 1 1 0;
+      min-width: 80px;
+      width: 0;
+      text-align: right;
+    }
+
+    &__select {
+      flex: 1 1 auto;
+      min-width: 100px;
+      cursor: pointer;
+      padding-right: 4px;
+    }
+
+    // Magnitude 행 — input 이 늘고 unit select 는 80px 고정.
+    // NOTE: 이 블록이 `.input { }` 안에 nested 라 `&--magnitude &__input` 처럼 `&` 를 두 번
+    // 쓰면 `.input .gravity-row--magnitude .input .gravity-row__input` 으로 `.input` 이
+    // 중복돼 DOM 과 매칭 안 됨. 리터럴 클래스로 작성해 회피.
+    &--magnitude {
+      .gravity-row__input {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .gravity-row__select {
+        flex: 0 0 80px;
+        min-width: 80px;
+      }
+    }
+  }
+
+  // 목업 .gravity-vis 정합 — gravity panel 의 SVG vector visualization.
+  .gravity-vis {
+    width: 100%;
+    height: 168px;
+    background: colors.$surface-dark-bg;
+    border: 1px solid colors.$surface-dark-hover;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin-top: 8px;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+  }
+
+  // 목업 정합 — heading("Direction Vector") + 3-col grid. 각 cell 은 axis 라벨이 위,
+  // bordered input 이 아래 (세로 배치).
+  .gravity-vector {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 4px;
+
+    &__heading {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 400;
+      color: colors.$gray-300;
+    }
+
+    &__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    &__cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    &__axis-label {
+      font-size: 10px;
+      line-height: 14px;
+      font-weight: 700;
+      color: colors.$gray-300;
+      padding-left: 4px;
+
+      &--x {
+        color: #e15554;
+      }
+      &--y {
+        color: #3bb273;
+      }
+      &--z {
+        color: colors.$primary-700;
+      }
+    }
+
+    &__input {
+      width: 100%;
+      height: 26px;
+      padding: 0 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      color: colors.$gray-50;
+      font-family: inherit;
+      font-size: 12px;
+      text-align: right;
+      box-sizing: border-box;
+      // number input 의 spinner control 제거.
+      appearance: textfield;
+      -moz-appearance: textfield;
+
+      &::-webkit-inner-spin-button,
+      &::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      &[readonly] {
+        background: colors.$surface-dark-bg;
+        color: colors.$gray-500;
+        cursor: not-allowed;
+      }
+
+      &:not([readonly]):focus {
+        outline: 0;
+        border-color: colors.$primary-500;
+        color: colors.$gray-50;
+      }
+    }
+  }
+
+  // ─── Model Checker 패널 — 목업 .checker 정합 ───
+  .checker {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 360px;
+    max-height: calc(100vh - 120px);
+    z-index: 21;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__icon-btn {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      color: colors.$gray-500;
+      cursor: pointer;
+
+      &--close:hover {
+        background: colors.$red-500;
+        color: colors.$white;
+      }
+
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+    }
+
+    &__status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid colors.$border-dark;
+      font-size: 12px;
+      color: colors.$gray-100;
+    }
+
+    &__status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: colors.$green-500;
+      flex-shrink: 0;
+    }
+
+    &__status-text {
+      flex: 1;
+      font-weight: 600;
+    }
+
+    &__status-summary {
+      font-size: 11px;
+      color: colors.$gray-300;
+    }
+
+    &__dof-card {
+      margin: 12px 16px;
+      padding: 12px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+    }
+
+    &__dof-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    &__dof-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: colors.$gray-300;
+    }
+
+    &__dof-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: colors.$primary-400;
+      padding: 2px 8px;
+      background: rgba(51, 158, 230, 0.15);
+      border-radius: 10px;
+    }
+
+    &__dof-formula {
+      font-family: monospace;
+      font-size: 11px;
+      color: colors.$gray-100;
+      margin-bottom: 6px;
+    }
+
+    &__dof-inputs {
+      font-size: 11px;
+      color: colors.$gray-300;
+    }
+
+    &__dof-match {
+      color: colors.$green-500;
+      font-weight: 700;
+    }
+
+    &__tabs {
+      display: flex;
+      padding: 0 16px;
+      border-bottom: 1px solid colors.$border-dark;
+    }
+
+    &__tab {
+      padding: 8px 12px;
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: colors.$gray-300;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &--active {
+        color: colors.$primary-400;
+        border-bottom-color: colors.$primary-500;
+      }
+
+      &:hover:not(.checker__tab--active) {
+        color: colors.$white;
+      }
+    }
+
+    &__pane {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    &__pane-placeholder {
+      padding: 24px;
+      text-align: center;
+      color: colors.$gray-300;
+      font-size: 12px;
+      border: 1px dashed colors.$border-dark;
+      border-radius: 4px;
+    }
+  }
+
+  // ─── Analysis Setup 패널 — 목업 .asetup 정합 ───
+  .asetup {
+    @include input-floating-panel-base;
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 340px;
+    max-height: calc(100vh - 120px);
+    z-index: 21;
+    display: none;
+    flex-direction: column;
+
+    &.is-open {
+      display: flex;
+    }
+
+    &__header {
+      @include input-floating-panel-header;
+    }
+
+    &__title {
+      @include input-floating-panel-title;
+    }
+
+    &__close {
+      @include input-floating-panel-close;
+    }
+
+    &__body {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    &__section {
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      padding: 12px;
+    }
+
+    &__section-legend {
+      padding: 0 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: colors.$primary-400;
+      letter-spacing: 0.5px;
+    }
+
+    &__tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid colors.$border-dark;
+    }
+
+    &__tab {
+      padding: 6px 10px;
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: colors.$gray-300;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+
+      &--active {
+        color: colors.$primary-400;
+        border-bottom-color: colors.$primary-500;
+      }
+    }
+
+    &__pane {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    &__pane--placeholder {
+      padding: 24px;
+      text-align: center;
+      color: colors.$gray-300;
+      font-size: 12px;
+      border: 1px dashed colors.$border-dark;
+      border-radius: 4px;
+    }
+
+    &__elem {
+      border: 1px solid colors.$border-dark;
+      border-radius: 4px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    &__elem-legend {
+      padding: 0 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: colors.$gray-300;
+      letter-spacing: 0.5px;
+    }
+  }
+
+  .asetup-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__label {
+      flex: 0 0 100px;
+      font-size: 11px;
+      color: colors.$gray-100;
+      font-weight: 600;
+    }
+
+    &__input-wrap {
+      flex: 1;
+
+      &--highlight {
+        outline: 1px solid colors.$primary-500;
+        border-radius: 3px;
+      }
+    }
+
+    &__input {
+      width: 100%;
+      padding: 4px 8px;
+      background: colors.$surface-dark-bg;
+      border: 1px solid colors.$border-dark;
+      border-radius: 3px;
+      color: colors.$white;
+      font-size: 11px;
+
+      &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+    }
+
+    &__swatch {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: colors.$primary-500;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    &__cb {
+      width: 14px;
+      height: 14px;
+      background: transparent;
+      border: 1px solid colors.$gray-500;
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+
+      &.is-checked {
+        background: colors.$primary-500;
+        border-color: colors.$primary-500;
+
+        &::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 4px;
+          height: 2px;
+          border-left: 2px solid colors.$white;
+          border-bottom: 2px solid colors.$white;
+          transform: translate(-50%, -65%) rotate(-45deg);
+        }
+      }
+    }
+  }
+
+  .asetup-elem-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid colors.$border-dark;
+    border-radius: 3px;
+    color: colors.$gray-100;
+    font-size: 11px;
+    cursor: pointer;
+
+    &.is-active {
+      background: rgba(51, 158, 230, 0.1);
+      border-color: colors.$primary-500;
+      color: colors.$primary-400;
+    }
+
+    &__radio {
+      width: 10px;
+      height: 10px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      position: relative;
+    }
+
+    &.is-active &__radio::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 4px;
+      height: 4px;
+      background: currentColor;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    &__label {
+      flex: 1;
+    }
+  }
+}

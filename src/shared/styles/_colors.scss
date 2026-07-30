@@ -1,0 +1,135 @@
+// Brand (splash palette 정합 — primary-600 #1980c5)
+$primary-20: #f6fbfe;
+$primary-100: #e8f4fc;
+$primary-200: #bbdff7;
+$primary-300: #8ec9f1;
+$primary-400: #60b4eb;
+$primary: #339ee6;
+$primary-500: $primary;
+$primary-600: #1980c5;
+$primary-700: #14679f;
+$primary-800: #0e4a71;
+$primary-900: #082c44;
+
+// Grayscale (splash palette 정합 — 100~300 미세 조정)
+$white: #fff;
+$gray-20: #f7f8f9;
+$gray-50: #eef1f3;
+$gray-100: #e5e8eb;
+$gray-200: #d1d5d9;
+$gray-300: #b1b8be;
+$gray-400: #9199a1;
+$gray-500: #788087;
+$gray-600: #60666c;
+$gray-700: #484c51;
+$gray-800: #303336;
+$gray-900: #18191b;
+$black: #000;
+
+// Dark theme surfaces (splash palette) — workspace 외 dark 영역용 신규 토큰.
+// menubar / sidebar / panel 등의 dark 배경 통일에 사용.
+$surface-dark: #2a2e34;       // Gray/Dark/Surface
+$surface-dark-hover: #383c42; // Gray/Dark/Surface-Hover
+$surface-dark-bg: #1f2227;    // Gray/Dark/Background
+$surface-dark-mid: #393e48;   // input field / count input inner (GD RQMT 정합)
+$surface-dark-mid-2: #414751; // button hover (GD RQMT cmp-fullbtn 정합)
+// 목업 force-btn (OK / Cancel / Reset / Apply / Scope) 공통 중립 회색 버튼 스케일.
+$btn-neutral: #40454d;        // force-btn base
+$btn-neutral-hover: #4e545d;  // force-btn :hover
+$btn-neutral-active: #2f343b; // force-btn :active
+$border-dark: #525861;        // Gray/Dark/Border
+$border-dark-soft: #383c42;   // soft divider (surface-hover 와 동일 톤)
+$text-muted: #9199a1;         // Gray/400 — muted body text
+$fg-bright: #f2f4f5;          // 목업 --fg — dark 패널 본문 primary 텍스트 (거의 흰색)
+
+// 목업 tree 강조색 — RecurDyn 식 노란 선택 하이라이트 / hover 화이트 오버레이.
+$tree-select-bg: rgba(240, 190, 40, 0.16);
+$row-hover-bg: rgba(255, 255, 255, 0.06);
+
+// System
+$select: #159eff;
+$warning: #ffc629;
+$ground: #1984cc;
+$motion: #eb3f43;
+$obstacle: #acb2b9;
+$insert: #339ee6;
+$draw: #33d7e6;
+$angle: #e1a23b;     // GD Target Kinematics — angle track / clip accent
+
+// red (splash palette — 500 톤다운: #e15554)
+$red-20: #fef6f6;
+$red-100: #fce8e8;
+$red-200: #f7bbbb;
+$red-300: #f18e8e;
+$red-400: #eb6060;
+$red-500: #e15554;
+$red-600: #cc1919;
+$red-700: #9f1414;
+$red-800: #710e0e;
+$red-900: #440808;
+
+// salmon
+$salmon-20: #fef7f6;
+$salmon-100: #fcebe8;
+$salmon-200: #f7c5bb;
+$salmon-300: #f19e8e;
+$salmon-400: #eb7760;
+$salmon-500: #e65133;
+$salmon-600: #cc3719;
+$salmon-700: #9f2b14;
+$salmon-800: #711f0e;
+$salmon-900: #441208;
+
+// orange
+$orange-20: #fef6f1;
+$orange-100: #fff0e5;
+$orange-200: #fad4b9;
+$orange-300: #f5b78c;
+$orange-400: #f09a5d;
+$orange-500: #eb7d2f;
+$orange-600: #d1702a;
+$orange-700: #a35015;
+$orange-800: #75390f;
+$orange-900: #4a2409;
+
+// yellow
+$yellow-20: #fefaf1;
+$yellow-100: #fff7e5;
+$yellow-200: #ffe9bd;
+$yellow-300: #fcd890;
+$yellow-400: #f7c560;
+$yellow-500: #f2b230;
+$yellow-600: #bf8613;
+$yellow-700: #916610;
+$yellow-800: #63460a;
+$yellow-900: #382706;
+
+// green (splash palette — 500 톤다운: #3bb273)
+$green-20: #f7fffa;
+$green-100: #e6faed;
+$green-200: #b7f2cb;
+$green-300: #8aebaa;
+$green-400: #5ee58b;
+$green-500: #3bb273;
+$green-600: #18bf50;
+$green-700: #12913d;
+$green-800: #0c6329;
+$green-900: #073817;
+
+// blue
+$blue-20: #f7f9ff;
+$blue-100: #e6ebfa;
+$blue-200: #b7c7f2;
+$blue-300: #8aa4eb;
+$blue-400: #5e82e5;
+$blue-500: #305dd9;
+$blue-600: #1844bf;
+$blue-700: #123491;
+$blue-800: #0c2463;
+$blue-900: #071438;
+
+// status
+$status-increase: #26bb26;
+
+// ui
+$badge-info: #15b9cb;

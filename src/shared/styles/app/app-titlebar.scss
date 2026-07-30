@@ -1,0 +1,124 @@
+@use "../colors";
+@use "../z-index" as z;
+@use "../shadows";
+
+.app-titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  // splash dark theme — surface (#2a2e34) + soft border
+  background: colors.$surface-dark;
+  color: colors.$gray-100;
+  -webkit-app-region: drag; // Draggable
+  user-select: none;
+  border-bottom: 1px solid colors.$border-dark-soft;
+
+  &__menu {
+    height: 100%;
+    display: flex;
+    padding-left: 20px;
+  }
+
+  &__menu-item {
+    p {
+      line-height: 40px;
+    }
+    position: relative;
+    padding: 0 12px;
+    color: colors.$gray-100;
+
+    &--active {
+      cursor: pointer;
+    }
+
+    &:hover {
+      cursor: pointer;
+      background: colors.$surface-dark-hover;
+    }
+  }
+
+  &__menu-title {
+    -webkit-app-region: no-drag;
+  }
+
+  &__menu-popup {
+    display: none;
+    position: fixed;
+    // splash menu dropdown — gray-900 배경 + surface-dark-hover border
+    background: colors.$gray-900;
+    color: colors.$gray-100;
+    min-width: 70px;
+    padding: 0.25rem 0;
+    border: 1px solid colors.$border-dark-soft;
+    box-shadow: shadows.$drop-shadow;
+    z-index: z.$titlebar;
+
+    &--active {
+      display: block;
+    }
+  }
+
+  &__menu-popup-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8125rem;
+    padding: 0.375rem 1rem;
+
+    &:hover {
+      cursor: pointer;
+      background: colors.$primary-500; // splash dropdown hover = brand-500
+      color: #fff;
+    }
+
+    // Radio-style 표시용 modifier — Language 같은 single-choice 항목. 4-space prefix 대신
+    // 절대 위치 ::before 로 등폭 폰트 가정 없이 alignment.
+    &--checkable .app-titlebar__popup-item-name {
+      padding-left: 1.2em;
+      position: relative;
+
+      &::before {
+        content: "";
+        position: absolute;
+        left: 0;
+      }
+    }
+
+    &--checkable.is-checked .app-titlebar__popup-item-name::before {
+      content: "✓";
+    }
+  }
+
+  &__popup-item-name {
+    padding-right: 2rem;
+  }
+
+  &__popup-item-shortcut {
+    color: colors.$text-muted;
+  }
+
+  &__popup-item-separator {
+    height: 1px;
+    margin: 4px 0;
+    background: colors.$border-dark-soft;
+  }
+
+  &__controls {
+    display: flex;
+    align-items: stretch;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+  }
+
+  &__control {
+    padding: 0 1.15em;
+    font-size: 0.875em;
+    display: flex;
+    height: 100%;
+    align-items: center;
+    -webkit-app-region: no-drag;
+    cursor: pointer;
+  }
+}
