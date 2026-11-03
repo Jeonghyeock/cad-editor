@@ -2,6 +2,7 @@
 // Trim, Fillet, Chamfer 도구에서 사용
 
 import type { SerializedGeometry } from "../../Setup.type";
+import { normalizeAngle } from "../../utils/mathUtils";
 
 import type { ConstraintGeomRef, ConstraintPointRef, SketchConstraint } from "../constraints/SketchConstraint.type";
 import type { ShapeSnapshot, SketchGeometryStore } from "../SketchGeometryStore";
@@ -178,10 +179,14 @@ export class CompoundSketchCommand implements GeometryCommand {
       return true;
     };
 
-    const remapGeomRef = (ref: ConstraintGeomRef): boolean => {
+    // lengthDependent: 길이에 기대는 구속(line_length·equal·midpoint·arc_length·curve_length)의 참조.
+    // 길이가 바뀐 조각(Trim·Fillet·Chamfer·Corner·Break 로 잘린 선 등)으로 옮기면 옛 길이·옛 중점을 강요해
+    // 솔버가 결과를 되돌리므로 옮기지 않고 cascade 삭제한다(undo 때 원본 복원). 길이가 그대로인 조각에는 옮긴다.
+    const remapGeomRef = (ref: ConstraintGeomRef, lengthDependent = false): boolean => {
       if (!removedIds.has(ref.geomId)) return true;
       const remap = this._geomRemaps.find((r) => r.oldGeomId === ref.geomId);
       if (!remap) return false;
+      if (lengthDependent && !this._sameLength(remap.oldGeomId, remap.newGeomId)) return false;
       ref.geomId = remap.newGeomId;
       return true;
     };
@@ -206,6 +211,8 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB);
         break;
       case "equal":
+        fullyMapped = remapGeomRef(cloned.lineA, true) && remapGeomRef(cloned.lineB, true);
+        break;
       case "parallel":
       case "perpendicular":
       case "colinear":
@@ -215,7 +222,7 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapGeomRef(cloned.entityA) && remapGeomRef(cloned.entityB);
         break;
       case "midpoint":
-        fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.line);
+        fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.line, true);
         break;
       case "point_on_line":
         fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.line);
@@ -235,7 +242,7 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapGeomRef(cloned.circleA) && remapGeomRef(cloned.circleB);
         break;
       case "line_length":
-        fullyMapped = remapGeomRef(cloned.line);
+        fullyMapped = remapGeomRef(cloned.line, true);
         break;
       case "angle":
       case "line_line_distance":
@@ -251,14 +258,14 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapGeomRef(cloned.line) && remapGeomRef(cloned.circle);
         break;
       case "arc_length":
-        fullyMapped = remapGeomRef(cloned.arc);
+        fullyMapped = remapGeomRef(cloned.arc, true);
         break;
       case "ellipse_major_radius":
       case "ellipse_minor_radius":
         fullyMapped = remapGeomRef(cloned.ellipse);
         break;
       case "curve_length":
-        fullyMapped = remapGeomRef(cloned.curve);
+        fullyMapped = remapGeomRef(cloned.curve, true);
         break;
       case "symmetric":
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB) && remapGeomRef(cloned.axis);
@@ -268,7 +275,7 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB) && remapPointRef(cloned.center);
         break;
       case "fix_together":
-        fullyMapped = cloned.elements.every(remapGeomRef);
+        fullyMapped = cloned.elements.every((ref) => remapGeomRef(ref));
         break;
       default:
         // 모르는 타입은 참조를 옮길 수 없으니 cascade 삭제한다(undo 때 원본 복원). 그대로 두면 지워진 기하를
@@ -281,5 +288,25 @@ export class CompoundSketchCommand implements GeometryCommand {
       return cloned;
     }
     return null;
+  }
+
+  // 재매핑 전후 기하의 길이(선분 길이·호 길이·원 둘레)가 같은지. 길이를 잴 수 없는 기하는 다르다고 본다.
+  private _sameLength(oldGeomId: string, newGeomId: string): boolean {
+    const before = geometryLength(this._removedGeometries.find((g) => g.id === oldGeomId));
+    const after = geometryLength(this._addedGeometries.find((g) => g.id === newGeomId));
+    return before !== null && after !== null && Math.abs(before - after) <= 1e-6 * Math.max(1, before);
+  }
+}
+
+function geometryLength(geom: SerializedGeometry | undefined): number | null {
+  switch (geom?.type) {
+    case "line":
+      return Math.hypot(geom.x2 - geom.x1, geom.y2 - geom.y1);
+    case "arc":
+      return geom.r * normalizeAngle(geom.endAngle - geom.startAngle);
+    case "circle":
+      return 2 * Math.PI * geom.r;
+    default:
+      return null;
   }
 }
