@@ -714,6 +714,10 @@ export type PadPocketModeState = {
   profileIds: string[];
   depth: number;
   direction: PadPocketDirection;
+  /** 편집 시 기존 operation 의 반대 방향 깊이 (two-dimensions). 없으면 패널이 depth 로 시작한다. */
+  depth2?: number;
+  /** 편집 시 기존 operation 의 draft 각도. 없으면 0. */
+  draftAngle?: number;
   /** 편집 중인 기존 operation ID (없으면 신규 생성) */
   editingOperationId?: string;
 } | null;

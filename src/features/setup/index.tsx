@@ -990,7 +990,9 @@ const Input = () => {
         sketchPlaneKey: op.sketchPlaneKey,
         profileIds: op.profileIds,
         depth: op.depth,
+        depth2: op.depth2,
         direction: op.direction,
+        draftAngle: op.draftAngle,
         editingOperationId: op.id,
       });
     },
