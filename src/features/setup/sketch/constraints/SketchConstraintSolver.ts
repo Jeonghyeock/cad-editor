@@ -964,59 +964,34 @@ export class SketchConstraintSolver {
           }
           break;
         }
+        // 아래 세 거리는 circle 과 arc 모두 planegcs 의 둘레 거리 primitive 로 매핑한다 (GCS 의 Arc 는
+        // Circle 을 상속해 c_id 에 arc id 를 넣을 수 있다). 예전처럼 arc 를 '중심까지 r + value' 로
+        // 우회하면 빌드 시점 r 이 상수로 굳어, 뒤에 건 반지름 치수와 충돌하고 over-constrained 에 고착된다.
         case "point_circle_distance": {
           // planegcs P2CDistance — 점-원 둘레 거리 직접 primitive (radius 변동에도 정확).
           const pKey = makePointKey(c.point.geomId, c.point.vertexIndex);
           const pId = pointRegistry.get(find(pKey));
-          const circleGeom = geometries.get(c.circle.geomId);
-          if (pId && circleGeom && circleGeom.type === "circle") {
-            const cId = circleIdMap.get(c.circle.geomId);
-            if (cId) {
-              primitives.push({ id: cid, type: "p2cdistance", p_id: pId, c_id: cId, distance: c.value });
-            }
-          } else if (pId && circleGeom && circleGeom.type === "arc") {
-            // arc 는 별도 primitive 부재 — center 까지 거리 = r + value 우회.
-            const centerId = pointRegistry.get(find(makePointKey(c.circle.geomId, 0)));
-            if (centerId) {
-              primitives.push({ id: cid, type: "p2p_distance", p1_id: pId, p2_id: centerId, distance: circleGeom.r + c.value });
-            }
+          const cId = circleIdMap.get(c.circle.geomId) ?? arcIdMap.get(c.circle.geomId);
+          if (pId && cId) {
+            primitives.push({ id: cid, type: "p2cdistance", p_id: pId, c_id: cId, distance: c.value });
           }
           break;
         }
         case "line_circle_distance": {
           // planegcs C2LDistance — line-원 둘레 거리 직접 primitive.
           const lid = lineIdMap.get(c.line.geomId);
-          const circleGeom = geometries.get(c.circle.geomId);
-          if (lid && circleGeom && circleGeom.type === "circle") {
-            const cId = circleIdMap.get(c.circle.geomId);
-            if (cId) {
-              primitives.push({ id: cid, type: "c2ldistance", c_id: cId, l_id: lid, dist: c.value });
-            }
-          } else if (lid && circleGeom && circleGeom.type === "arc") {
-            const centerId = pointRegistry.get(find(makePointKey(c.circle.geomId, 0)));
-            if (centerId) {
-              primitives.push({ id: cid, type: "p2l_distance", p_id: centerId, l_id: lid, distance: circleGeom.r + c.value });
-            }
+          const cId = circleIdMap.get(c.circle.geomId) ?? arcIdMap.get(c.circle.geomId);
+          if (lid && cId) {
+            primitives.push({ id: cid, type: "c2ldistance", c_id: cId, l_id: lid, dist: c.value });
           }
           break;
         }
         case "circle_circle_distance": {
           // planegcs C2CDistance — 원-원 둘레 거리 직접 primitive.
-          const a = geometries.get(c.circleA.geomId);
-          const b = geometries.get(c.circleB.geomId);
-          if (a?.type === "circle" && b?.type === "circle") {
-            const aId = circleIdMap.get(c.circleA.geomId);
-            const bId = circleIdMap.get(c.circleB.geomId);
-            if (aId && bId) {
-              primitives.push({ id: cid, type: "c2cdistance", c1_id: aId, c2_id: bId, dist: c.value });
-            }
-          } else if (a && b && (a.type === "circle" || a.type === "arc") && (b.type === "circle" || b.type === "arc")) {
-            // arc 포함 시 center-center 거리 = rA + rB + value 우회.
-            const aCenterId = pointRegistry.get(find(makePointKey(c.circleA.geomId, 0)));
-            const bCenterId = pointRegistry.get(find(makePointKey(c.circleB.geomId, 0)));
-            if (aCenterId && bCenterId) {
-              primitives.push({ id: cid, type: "p2p_distance", p1_id: aCenterId, p2_id: bCenterId, distance: a.r + b.r + c.value });
-            }
+          const aId = circleIdMap.get(c.circleA.geomId) ?? arcIdMap.get(c.circleA.geomId);
+          const bId = circleIdMap.get(c.circleB.geomId) ?? arcIdMap.get(c.circleB.geomId);
+          if (aId && bId) {
+            primitives.push({ id: cid, type: "c2cdistance", c1_id: aId, c2_id: bId, dist: c.value });
           }
           break;
         }
@@ -1095,25 +1070,17 @@ export class SketchConstraintSolver {
         }
         case "equidistant": {
           // A와 B가 center에서 같은 거리: dist(A, center) = dist(B, center)
-          // planegcs에서 두 거리를 동일하게 만들기 위해: 현재 거리 계산 후 양쪽에 같은 distance 적용
+          // = center 가 AB 의 수직이등분선 위 — 방정식 하나 (자유도 1). 빌드 시점 거리를 두 p2p_distance
+          // 상수로 굳히면 자유도를 2 쓰고, 그 거리를 바꾸는 치수 (예: AC=12) 를 모두 거부한다.
           const paKey = makePointKey(c.pointA.geomId, c.pointA.vertexIndex);
           const pbKey = makePointKey(c.pointB.geomId, c.pointB.vertexIndex);
           const pcKey = makePointKey(c.center.geomId, c.center.vertexIndex);
           const paId = pointRegistry.get(find(paKey));
           const pbId = pointRegistry.get(find(pbKey));
           const pcId = pointRegistry.get(find(pcKey));
-          if (paId && pbId && pcId) {
-            // 현재 A-C 거리 계산
-            const coordA = pointCoords.get(paId);
-            const coordC = pointCoords.get(pcId);
-            if (coordA && coordC) {
-              const dist = Math.hypot(coordA.x - coordC.x, coordA.y - coordC.y);
-              if (dist > 1e-6) {
-                // 양쪽 모두 같은 거리 구속
-                primitives.push({ id: `${cid}_ac`, type: "p2p_distance", p1_id: paId, p2_id: pcId, distance: dist });
-                primitives.push({ id: `${cid}_bc`, type: "p2p_distance", p1_id: pbId, p2_id: pcId, distance: dist });
-              }
-            }
+          // A·B 가 같은 점이면 항상 성립 — 수직이등분선이 정의되지 않으므로 추가하지 않음.
+          if (paId && pbId && pcId && paId !== pbId) {
+            primitives.push({ id: cid, type: "point_on_perp_bisector_ppp", p_id: pcId, lp1_id: paId, lp2_id: pbId });
           }
           break;
         }

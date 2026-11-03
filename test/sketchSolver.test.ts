@@ -62,3 +62,98 @@ test("180° 이하 각도 치수와 맞출 수 없는 각도 치수는 예전과
   constraints.push({ type: "vertical", id: "v", line: { geomId: "B" } });
   assert.equal((await solve(geoms, constraints)).status, "over-constrained");
 });
+
+// 원점 중심 r=10 인 1/4 호
+const arc = (r = 10): SerializedGeometry => ({ type: "arc", id: "R", cx: 0, cy: 0, r, startAngle: 0, endAngle: Math.PI / 2 });
+const radius13: SketchConstraint = { type: "radius", id: "rad", circle: { geomId: "R" }, value: 13 };
+const arcOf = (g: SerializedGeometry | undefined) => {
+  assert.equal(g?.type, "arc");
+  return g?.type === "arc" ? g : { cx: NaN, cy: NaN, r: NaN };
+};
+const near = (actual: number, expected: number) =>
+  assert.ok(Math.abs(actual - expected) < 1e-3, `${actual} ≠ ${expected}`);
+
+test("호와 점 사이 거리 치수를 건 뒤 호 반지름을 바꿔도 거리 치수가 따라간다", async () => {
+  // 고치기 전에는 호 거리를 '중심까지 r + 거리' 상수(빌드 시점 r=10)로 굳혀, 반지름 13 이 거부됐다
+  const { status, geoms } = await solve(
+    [arc(), { type: "point", id: "P", x: 15, y: 0 }],
+    [
+      { type: "point_circle_distance", id: "pd", point: { geomId: "P", vertexIndex: 0 }, circle: { geomId: "R" }, value: 5 },
+      radius13,
+    ],
+  );
+  assert.notEqual(status, "over-constrained");
+  const r = arcOf(geoms.get("R"));
+  const p = geoms.get("P");
+  assert.equal(p?.type, "point");
+  if (p?.type !== "point") return;
+  near(r.r, 13);
+  near(Math.hypot(p.x - r.cx, p.y - r.cy) - r.r, 5);
+});
+
+test("호와 선 사이 거리 치수를 건 뒤 호 반지름을 바꿔도 거리 치수가 따라간다", async () => {
+  const { status, geoms } = await solve(
+    [arc(), { type: "line", id: "L", x1: -20, y1: 20, x2: 20, y2: 20 }],
+    [
+      { type: "horizontal", id: "h", line: { geomId: "L" } },
+      { type: "line_circle_distance", id: "ld", line: { geomId: "L" }, circle: { geomId: "R" }, value: 10 },
+      radius13,
+    ],
+  );
+  assert.notEqual(status, "over-constrained");
+  const r = arcOf(geoms.get("R"));
+  const l = geoms.get("L");
+  assert.equal(l?.type, "line");
+  if (l?.type !== "line") return;
+  near(r.r, 13);
+  near(Math.abs(l.y1 - r.cy) - r.r, 10);
+});
+
+test("호와 원 사이 거리 치수를 건 뒤 호 반지름을 바꿔도 거리 치수가 따라간다", async () => {
+  const { status, geoms } = await solve(
+    [arc(), { type: "circle", id: "K", cx: 30, cy: 0, r: 5 }],
+    [
+      { type: "circle_circle_distance", id: "cd", circleA: { geomId: "R" }, circleB: { geomId: "K" }, value: 15 },
+      radius13,
+    ],
+  );
+  assert.notEqual(status, "over-constrained");
+  const r = arcOf(geoms.get("R"));
+  const k = geoms.get("K");
+  assert.equal(k?.type, "circle");
+  if (k?.type !== "circle") return;
+  near(r.r, 13);
+  near(Math.hypot(k.cx - r.cx, k.cy - r.cy) - r.r - k.r, 15);
+});
+
+// 중심 C 에서 A·B 가 같은 거리(10)
+const equidistantSketch = (): [SerializedGeometry[], SketchConstraint[]] => [
+  [
+    { type: "point", id: "A", x: 10, y: 0 },
+    { type: "point", id: "B", x: 0, y: 10 },
+    { type: "point", id: "C", x: 0, y: 0 },
+  ],
+  [
+    {
+      type: "equidistant", id: "eq",
+      pointA: { geomId: "A", vertexIndex: 0 }, pointB: { geomId: "B", vertexIndex: 0 }, center: { geomId: "C", vertexIndex: 0 },
+    },
+  ],
+];
+
+test("equidistant 는 자유도를 하나만 쓰고, 모순 없는 거리 치수를 받아들인다", async () => {
+  // 고치기 전에는 빌드 시점 거리(10)로 AC·BC 를 둘 다 고정해 자유도를 2 썼고, AC=12 를 거부했다
+  const [geoms, constraints] = equidistantSketch();
+  assert.equal((await solve(geoms, constraints)).dof, 6 - 1);
+
+  const [geoms12, constraints12] = equidistantSketch();
+  constraints12.push({
+    type: "distance", id: "ac", pointA: { geomId: "A", vertexIndex: 0 }, pointB: { geomId: "C", vertexIndex: 0 }, value: 12,
+  });
+  const { status, geoms: solved } = await solve(geoms12, constraints12);
+  assert.notEqual(status, "over-constrained");
+  const [a, b, c] = ["A", "B", "C"].map((id) => solved.get(id));
+  assert.ok(a?.type === "point" && b?.type === "point" && c?.type === "point");
+  near(Math.hypot(a.x - c.x, a.y - c.y), 12);
+  near(Math.hypot(b.x - c.x, b.y - c.y), 12);
+});
