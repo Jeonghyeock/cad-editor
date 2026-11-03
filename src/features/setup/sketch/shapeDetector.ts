@@ -107,6 +107,45 @@ type HalfEdge = {
 };
 
 /**
+ * 면 경계 반변(가지·다리를 뺀 것)을 이어지는 루프로 나눠, 면적(CCW 양수)이 가장 큰 루프를 반환.
+ * 루프는 면을 돈 순서대로 앞으로 보며 끝 노드에서 나가는 반변을 이어 만든다. 루프가 하나면 그대로다.
+ */
+function outerLoopOf(edges: HalfEdge[], coord: Map<PointKey, { x: number; y: number }>): HalfEdge[] {
+  const loops: HalfEdge[][] = [];
+  const used = new Set<HalfEdge>();
+  for (let i = 0; i < edges.length; i++) {
+    if (used.has(edges[i])) continue;
+    const loop = [edges[i]];
+    used.add(edges[i]);
+    let at = i;
+    for (;;) {
+      const tail = loop[loop.length - 1].toNode;
+      let next = -1;
+      for (let k = 1; k < edges.length; k++) {
+        const idx = (at + k) % edges.length;
+        if (!used.has(edges[idx]) && edges[idx].fromNode === tail) { next = idx; break; }
+      }
+      if (next < 0) break;
+      loop.push(edges[next]);
+      used.add(edges[next]);
+      at = next;
+    }
+    loops.push(loop);
+  }
+  if (loops.length === 1) return loops[0];
+
+  const loopArea = (loop: HalfEdge[]): number => {
+    let area = 0;
+    for (const e of loop) {
+      const a = coord.get(e.fromNode), b = coord.get(e.toNode);
+      if (a && b) area += a.x * b.y - b.x * a.y;
+    }
+    return area;
+  };
+  return loops.reduce((best, loop) => (loopArea(loop) > loopArea(best) ? loop : best));
+}
+
+/**
  * coincident 구속 기반으로 닫힌 루프 탐지 → SketchShape 배열 반환
  *
  * 알고리즘 (half-edge planar face enumeration):
@@ -280,14 +319,16 @@ export function detectClosedShapes(
     if (!valid || faceEdges.length < 2 || curr !== startHe) continue;
 
     // 면적 계산 (CCW = 양수만 유지, CW = 외부 면 → 스킵)
-    // 면 안으로 뻗은 가지 선은 같은 면에서 갔다가 되돌아오므로(정방향·역방향 반변 모두) 면 경계에서 뺀다.
+    // 면 안으로 뻗은 가지 선·안쪽 루프로 가는 다리 선은 같은 면에서 갔다가 되돌아오므로(정방향·역방향 반변 모두)
+    // 면 경계에서 뺀다.
     const faceHalfEdgeIds = new Set(faceEdges.map((e) => e.id));
-    const lineIds = faceEdges
-      .filter((e) => !faceHalfEdgeIds.has(e.twin!.id))
-      .map((e) => e.geomId);
+    const boundary = faceEdges.filter((e) => !faceHalfEdgeIds.has(e.twin!.id));
     // 가지만으로 된 면(열린 꺾은선을 한 바퀴 왕복한 것)은 면이 아니다. 왕복 면적은 0 이어야 하지만 부동소수 잔차로
     // 아주 작은 양수가 나와 아래 면적 검사를 통과하기도 한다.
-    if (lineIds.length === 0) continue;
+    if (boundary.length === 0) continue;
+    // 다리를 빼면 바깥 루프와 안쪽 루프가 따로 남는다. 안쪽 루프는 제 면으로 따로 잡히고 돌출할 때 포함 깊이로
+    // 구멍이 되므로(다리 없이 둘 때와 같은 표현), 이 면의 경계는 바깥 루프만 둔다.
+    const lineIds = outerLoopOf(boundary, repCoord).map((e) => e.geomId);
     const faceVerts: { x: number; y: number }[] = [];
     for (const e of faceEdges) {
       const c = repCoord.get(e.fromNode);
