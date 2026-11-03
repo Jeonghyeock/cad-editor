@@ -5,6 +5,7 @@ import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 
+import { sceneTasksFor } from "../core/commands/SceneTaskQueue";
 import { OcctFeatureTree } from "../core/OcctFeatureTree";
 import type {
   CrossSectionDef,
@@ -847,11 +848,16 @@ export default class SetupScene {
     this._solidOperationManager.restoreSourceVisibility(operationId);
   }
 
+  // Pad/Pocket·Revolve 명령과 같은 씬 큐로 보낸다 — 스케치를 닫을 때 등 rebuild 의 add 가 명령의 add(생성·편집·undo)와
+  // 겹치면 같은 op 의 메시가 고아로 남는다. rebuild 전체가 한 작업이라, 앞 작업이 끝난 뒤 돌고 rebuild 의 add 가 모두
+  // 끝나야 다음 작업이 돈다. 진행 중인 작업이 없으면 지금처럼 바로 시작한다.
   rebuildOperationsForSketch(
     sketchPlaneKey: string,
     operations: OperationTreeEntry[],
   ): void {
-    this._solidOperationManager.rebuildOperationsForSketch(sketchPlaneKey, operations);
+    sceneTasksFor(this).run(`rebuild:${sketchPlaneKey}`, () =>
+      this._solidOperationManager.rebuildOperationsForSketch(sketchPlaneKey, operations),
+    );
   }
 
   // --- 리소스 정리 ---
