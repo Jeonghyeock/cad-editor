@@ -665,10 +665,10 @@ const Input = () => {
     (planeKey: string) => {
       const getScene = () => sceneRef.current;
       executeCommand(
-        new DeleteSketchCommand(planeKey, setSketchEntries, getScene),
+        new DeleteSketchCommand(planeKey, setSketchEntries, getScene, globalHistory),
       );
     },
-    [executeCommand, setSketchEntries],
+    [executeCommand, setSketchEntries, globalHistory],
   );
 
   // 스케치 가시성 토글 — SpecTree 의 onSketchVisibilityToggle 제거 (088 새 구조에서

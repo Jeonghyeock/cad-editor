@@ -157,3 +157,52 @@ test("빈 키로 들어온 스케치는 열린 스케치로 보지 않는다", a
   assert.equal(history.undo(), null);
   assert.equal(store.geometries.has("L"), true);
 });
+
+// 리뷰 반영 — 스케치를 planeKey 로만 구분해, 같은 평면에서 지우고 새로 만든 스케치를 같은 스케치로 봤다.
+
+test("지운 스케치의 드래그 엔트리는 같은 평면에 새로 만든 스케치에 적용하지 않고, 삭제를 되돌려 다시 열면 적용한다", async () => {
+  const { DeleteSketchCommand } = await import("src/features/setup/core/commands/DeleteSketchCommand");
+  const { store, history } = await createSketch();
+
+  // XY 스케치: 선을 그리고 드래그
+  history.setActiveSketch("XY");
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  const clone = () => new Map([...store.geometries].map(([id, g]) => [id, structuredClone(g)]));
+  const before = clone();
+  store.geometries.set("L", line("L", 0, 0, 20, 8));
+  store.pushSnapshot(new DragSnapshotCommand(before, clone()));
+  const savedX1 = closeSketch(store);
+  history.setActiveSketch(null);
+
+  // 스케치 삭제 (SpecTree → index.tsx 의 handleSketchDelete 와 같은 명령)
+  const baked = new Map<string, unknown>([["XY", { geometries: savedX1 }]]);
+  const scene = {
+    getSavedSketchByKey: (key: string) => baked.get(key) ?? null,
+    deleteSavedSketch: (key: string) => baked.delete(key),
+    restoreSavedSketch: (key: string, data: unknown) => baked.set(key, data),
+  };
+  let entries = [{ planeKey: "XY", planeName: "Sketch 1" }] as never[];
+  const setEntries = (u: unknown) => {
+    entries = typeof u === "function" ? u(entries) : (u as never[]);
+  };
+  history.executeCommand(new DeleteSketchCommand("XY", setEntries, () => scene as never, history));
+
+  // 같은 평면에 새 스케치
+  history.setActiveSketch("XY");
+  openSketch(store);
+  store.execute(new AddGeometryCommand(line("M", 1, 1, 2, 2)));
+  assert.equal(history.undo(), "geometry"); // M
+  assert.equal(history.undo(), "model"); // 스케치 삭제 되돌림
+  const undone = history.undo(); // 지운 스케치의 드래그
+  // 고치기 전에는 DragSnapshotCommand.undo 가 새 스케치 store 를 지운 스케치의 드래그 전 기하로 바꿨다
+  assert.equal(store.geometries.has("L"), false);
+  assert.equal(undone, null);
+
+  // 새 스케치를 닫고, 삭제를 되돌려 돌아온 스케치를 다시 열면 그 엔트리를 이어서 되돌린다
+  closeSketch(store);
+  history.setActiveSketch(null);
+  history.setActiveSketch("XY");
+  openSketch(store, savedX1);
+  assert.equal(history.undo(), "geometry");
+  assert.deepEqual(lineOf(store, "L"), { x1: 0, y1: 0, x2: 10, y2: 5 });
+});

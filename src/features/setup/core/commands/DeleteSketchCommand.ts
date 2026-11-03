@@ -6,6 +6,7 @@ import type SetupScene from "../../rendering/SetupScene";
 import type { SerializedSketch, SketchTreeEntry } from "../../Setup.type";
 
 import type { GlobalCommand } from "../GlobalCommand";
+import type { GlobalHistoryManager } from "../GlobalHistoryManager";
 
 export class DeleteSketchCommand implements GlobalCommand {
   readonly label = "Delete Sketch";
@@ -17,9 +18,12 @@ export class DeleteSketchCommand implements GlobalCommand {
     private _planeKey: string,
     private _setSketchEntries: (update: SetStateAction<SketchTreeEntry[]>) => void,
     private _getScene: () => SetupScene | null,
+    // 지운 스케치의 기하 엔트리를 같은 평면에 새로 만든 스케치에 적용하지 않도록 히스토리에 알린다.
+    private _history?: Pick<GlobalHistoryManager, "retireSketch" | "reviveSketch">,
   ) {}
 
   execute(): void {
+    this._history?.retireSketch(this._planeKey);
     const s = this._getScene();
     // 삭제 전 직렬화 데이터 보존 (undo 복원용)
     if (s) {
@@ -33,6 +37,7 @@ export class DeleteSketchCommand implements GlobalCommand {
   }
 
   undo(): void {
+    this._history?.reviveSketch(this._planeKey);
     if (!this._savedEntry) return;
     const entry = this._savedEntry;
     this._setSketchEntries((prev) => [...prev, entry]);
