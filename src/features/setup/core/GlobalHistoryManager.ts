@@ -21,7 +21,12 @@ type GlobalEntry =
       /** 실행·솔브 직후 좌표 — redo 때 되돌린다. 스냅샷을 직접 들고 있는 커맨드(ownsSnapshot)는 없다. */
       after?: GeometrySnapshot;
     }
-  | { source: "model"; command: GlobalCommand };
+  | {
+      source: "model";
+      command: GlobalCommand;
+      /** sketchScoped 커맨드만 — 실행한 스케치. 기하 엔트리처럼 이 스케치가 열려 있을 때만 undo/redo 한다. */
+      sketchKey?: string;
+    };
 
 // 솔버는 기하 객체의 좌표를 제자리에서 고친다. 구속 명령의 undo/redo 는 구속만 넣고 빼므로, 좌표를 따로 남겨 두지
 // 않으면 솔버가 옮긴 좌표가 undo 뒤에도 그대로 남고, 명령이 들고 있던 객체까지 고쳐져 redo 결과가 달라진다.
@@ -185,9 +190,19 @@ export class GlobalHistoryManager {
   // --- 3D 모델 작업용 직접 커맨드 실행 ---
 
   executeCommand(command: GlobalCommand): void {
+    // 스케치 store 를 직접 바꾸는 커맨드(sketchScoped)는 기하 엔트리처럼 열린 스케치에 묶고, 열린 스케치가 없으면
+    // 기록하지 않는다 (tryExecuteGeometryCommand 와 같은 이유).
+    if (command.sketchScoped && !this._activeSketchKey) {
+      command.execute();
+      return;
+    }
     this._truncateFuture();
     command.execute();
-    this._stack.push({ source: "model", command });
+    this._stack.push(
+      command.sketchScoped && this._activeSketchKey
+        ? { source: "model", command, sketchKey: this._activeSketchKey }
+        : { source: "model", command },
+    );
     this._index++;
     this._notifyListeners("push");
   }
@@ -216,8 +231,10 @@ export class GlobalHistoryManager {
 
   /** 기하 엔트리가 지금 열린 스케치의 것이 아니면 true */
   private _isOtherSketch(entry: GlobalEntry): boolean {
+    // 스케치에 묶인 엔트리 = 기하 엔트리 + 스케치 store 를 직접 바꾸는 모델 커맨드(sketchScoped)
+    const scoped = entry.source === "geometry" || entry.command.sketchScoped === true;
     // 키가 비어 있는 엔트리는 어떤 상태와도 같은 스케치로 보지 않는다 (3D 모드의 null 과도 맞추지 않음).
-    return entry.source === "geometry" && (!entry.sketchKey || entry.sketchKey !== this._activeSketchKey);
+    return scoped && (!entry.sketchKey || entry.sketchKey !== this._activeSketchKey);
   }
 
   /** 이 엔트리 앞에서 멈춰야 하면 true — 다른 스케치의 기하 엔트리, 또는 지금은 안 된다고 하는 모델 커맨드 */
