@@ -4,19 +4,28 @@
 
 import type { DimensionConstraintType } from "../../sketch/constraints/ConstraintValidator";
 
+// 첫 표시에서 소수부에 남기는 유효숫자 수
+const FRACTION_SIGNIFICANT_DIGITS = 6;
+
 /**
- * 패널 첫 표시 문자열. 소수 2자리로 값이 그대로 나타나면 2자리 ("40.00"), 아니면 유효숫자
- * 6자리까지 보인다 — MKS 의 4mm 가 "0.00" 으로 보여 OK 가 비활성이 되지 않게.
+ * 패널 첫 표시 문자열. 소수 2자리로 값이 그대로 나타나면 2자리 ("40.00"), 아니면 정수부는 모두 남기고
+ * 소수부만 유효숫자 6자리까지 보인다 — MKS 의 4mm 가 "0.00" 으로 보여 OK 가 비활성이 되지 않게, 큰 값의
+ * 정수부가 반올림되지 않게 (전체 유효숫자로 자르면 123456.789 가 "123457").
  */
 export function formatDimensionInput(display: number): string {
   const fixed2 = display.toFixed(2);
   if (Number(fixed2) === display) return fixed2;
-  return String(Number(display.toPrecision(6)));
+  const fraction = Math.abs(display) % 1;
+  // 소수점과 첫 유효숫자 사이의 0 개수 (0.004 → 2)
+  const leadingZeros = fraction > 0 ? Math.max(0, -Math.floor(Math.log10(fraction)) - 1) : 0;
+  const digits = Math.min(100, leadingZeros + FRACTION_SIGNIFICANT_DIGITS);
+  return String(Number(display.toFixed(digits)));
 }
 
 /**
  * 입력 문자열을 저장값 (length 는 mm, angle 은 °) 으로 바꾼다. 유효하지 않으면 null.
- * 입력이 처음 표시한 값과 같으면 반올림된 표시값을 다시 환산하지 않고 defaultValue 를 그대로 돌려준다.
+ * 입력 글자 (앞뒤 공백 제외) 가 처음 표시한 글자와 같으면 반올림된 표시값을 다시 환산하지 않고
+ * defaultValue 를 그대로 돌려준다. 글자가 다르면 같은 수라도 (예: "12.34570") 사용자가 친 값으로 본다.
  */
 export function resolveDimensionInput(
   text: string,
@@ -25,11 +34,17 @@ export function resolveDimensionInput(
   type: DimensionConstraintType,
   toStored: (display: number) => number,
 ): number | null {
-  const parsed = parseFloat(text);
-  if (isNaN(parsed)) return null;
-  const unchanged = parsed === parseFloat(initialText);
+  const trimmed = text.trim();
+  let value: number;
+  if (trimmed === initialText) {
+    value = defaultValue;
+  } else {
+    // parseFloat 는 "12.3abc" 의 숫자 아닌 꼬리를 버리고 통과시키므로, 글자 전체가 수인지 Number 로 본다.
+    const parsed = trimmed === "" ? NaN : Number(trimmed);
+    if (!Number.isFinite(parsed)) return null;
+    value = toStored(parsed);
+  }
   // 0 이하 / 360 이상 판정은 단위와 무관하므로 저장값으로 해도 같다.
-  const value = unchanged ? defaultValue : toStored(parsed);
   if (type !== "line_angle" && value <= 0) return null;
   // angle: 0 < value < 360 — 사잇각 / 보각 / 반사각 / 보반사각 모두 허용
   if (type === "angle" && value >= 360) return null;
