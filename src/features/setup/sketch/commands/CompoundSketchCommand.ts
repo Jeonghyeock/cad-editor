@@ -4,7 +4,7 @@
 import type { SerializedGeometry } from "../../Setup.type";
 
 import type { ConstraintGeomRef, ConstraintPointRef, SketchConstraint } from "../constraints/SketchConstraint.type";
-import type { SketchGeometryStore } from "../SketchGeometryStore";
+import type { ShapeSnapshot, SketchGeometryStore } from "../SketchGeometryStore";
 
 import type { GeometryCommand } from "./GeometryCommand";
 
@@ -27,6 +27,8 @@ export class CompoundSketchCommand implements GeometryCommand {
   private _cascadeRemovedConstraints: SketchConstraint[] = [];
   // 재매핑되어 유지된 구속 (undo 시 제거 대상)
   private _remappedConstraints: SketchConstraint[] = [];
+  // 제거한 기하를 쓰던 shape (undo 때 이미지·설정째 복원)
+  private _removedShapes: ShapeSnapshot[] = [];
 
   constructor(
     private _removedGeometries: SerializedGeometry[],
@@ -51,6 +53,7 @@ export class CompoundSketchCommand implements GeometryCommand {
     this._remappedOriginals = [];
 
     const removedIds = new Set(this._removedGeometries.map((g) => g.id));
+    this._removedShapes = store.snapshotShapesUsing(removedIds);
 
     // 1. 명시적 구속 제거
     if (store.constraintStore) {
@@ -134,6 +137,7 @@ export class CompoundSketchCommand implements GeometryCommand {
     for (const geom of this._removedGeometries) {
       store.geometries.set(geom.id, geom);
     }
+    store.restoreShapes(this._removedShapes);
 
     // 4. 제거된 구속 복원
     // - _removedConstraints: 명시적으로 제거된 구속
