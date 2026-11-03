@@ -124,9 +124,10 @@ export class OrientedRectangleDrawTool extends DrawTool {
     );
 
     if (this._step === 1 && this._p1) {
-      // 첫 변 프리뷰
+      // 첫 변 프리뷰 — 확정(onPointerDown)과 같은 평행·수직·공선 보정을 거친 끝점
+      const end = this._applyParallelPerpendicularSnap(store, this._p1, snappedPos)?.pos ?? snappedPos;
       this.previews = [
-        { type: "line", id: "__preview_0__", x1: this._p1.x, y1: this._p1.y, x2: snappedPos.x, y2: snappedPos.y },
+        { type: "line", id: "__preview_0__", x1: this._p1.x, y1: this._p1.y, x2: end.x, y2: end.y },
       ];
     } else if (this._step === 2 && this._p1 && this._p2) {
       // 전체 사각형 프리뷰

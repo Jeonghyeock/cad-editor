@@ -146,13 +146,15 @@ export class ParallelogramDrawTool extends DrawTool {
     );
 
     if (this._step === 1 && this._p1) {
-      // 첫 변 프리뷰
+      // 첫 변 프리뷰 — 확정(onPointerDown)과 같은 평행·수직·공선 보정을 거친 끝점
+      const end = this._applyParallelPerpendicularSnap(store, this._p1, snappedPos)?.pos ?? snappedPos;
       this.previews = [
-        { type: "line", id: "__preview_0__", x1: this._p1.x, y1: this._p1.y, x2: snappedPos.x, y2: snappedPos.y },
+        { type: "line", id: "__preview_0__", x1: this._p1.x, y1: this._p1.y, x2: end.x, y2: end.y },
       ];
     } else if (this._step === 2 && this._p1 && this._p2) {
-      // 전체 평행사변형 프리뷰
-      const corners = this._computeCorners(this._p1, this._p2, snappedPos);
+      // 전체 평행사변형 프리뷰 — 두 번째 변도 확정과 같은 보정을 거친다
+      const third = this._applyParallelPerpendicularSnap(store, this._p2, snappedPos)?.pos ?? snappedPos;
+      const corners = this._computeCorners(this._p1, this._p2, third);
       if (corners) {
         const [c0, c1, c2, c3] = corners;
         this.previews = [

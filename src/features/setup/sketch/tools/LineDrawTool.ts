@@ -141,6 +141,11 @@ export class LineDrawTool extends DrawTool {
     if (this._startPos) {
       const hvResult = this._applyHVSnap(snappedPos);
       let endPos = hvResult.pos;
+      // 확정(onPointerDown)과 같은 기준: H/V 가 안 걸리면 평행·수직·공선 추론으로 보정한 끝점을 보여 준다
+      if (hvResult.snapDir === null) {
+        const ppResult = this._applyParallelPerpendicularSnap(store, this._startPos, endPos);
+        if (ppResult) endPos = ppResult.pos;
+      }
 
       // 방향 기반 + 기하 기반 추론선 계산
       const directional = computeDirectionalInferences(

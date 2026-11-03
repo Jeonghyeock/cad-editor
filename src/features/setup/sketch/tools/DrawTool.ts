@@ -300,11 +300,12 @@ export abstract class DrawTool {
     }
 
     if (!best) return null;
+    // 기준 방향과 그 반대 방향 중 그은 방향에 가까운 쪽을 고른다. 각도 차는 atan2(sin, cos) 로 [-π, π] 에 넣어 비교한다
+    // — JS % 는 음수를 그대로 돌려줘서, 차가 -π 보다 작으면 먼 쪽을 골라 확정 순간 끝점이 시작점 반대편으로 뒤집혔다.
+    const angleGap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
     let target = best.targetAngle;
-    const diffA = Math.abs(((angle - target + Math.PI) % (2 * Math.PI)) - Math.PI);
     const targetOpp = target + Math.PI;
-    const diffB = Math.abs(((angle - targetOpp + Math.PI) % (2 * Math.PI)) - Math.PI);
-    if (diffB < diffA) target = targetOpp;
+    if (angleGap(angle, targetOpp) < angleGap(angle, target)) target = targetOpp;
     const snappedX = startPos.x + dist * Math.cos(target);
     const snappedY = startPos.y + dist * Math.sin(target);
     return { pos: { x: snappedX, y: snappedY }, sourceGeomId: best.sourceGeomId, relation: best.relation };
