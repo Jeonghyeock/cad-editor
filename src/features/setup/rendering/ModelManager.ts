@@ -17,6 +17,7 @@ import {
   pickFace,
   pickEdge,
   pickVertex,
+  getVisibleBodyMeshes,
 } from "../step/StepModelManager";
 
 import { disposeObject3D, disposeGroupChildren } from "./disposeUtils";
@@ -370,23 +371,9 @@ export class ModelManager implements EntityPicker {
   ): { modelId: string; bodyIndex: number } | null {
     raycaster.setFromCamera(mouseNDC, activeCamera);
 
-    for (const [modelId, group] of this._stepModelGroups) {
-      if (!group.visible) continue;
-      // 몸체 메시만 — group 에 붙는 꼭짓점 hover/선택 구슬(Mesh)을 맞히면 그 순번이 bodyIndex 로 나갔다
-      const meshes = group.children.filter(
-        (c): c is THREE.Mesh => c instanceof THREE.Mesh && typeof c.userData.bodyIndex === "number",
-      );
-      const visibleMeshes = meshes.filter((m) => m.visible);
-      if (visibleMeshes.length === 0) continue;
-
-      const intersects = raycaster.intersectObjects(visibleMeshes, false);
-      if (intersects.length > 0) {
-        const hitObj = intersects[0].object as THREE.Mesh;
-        const bodyIndex = meshes.indexOf(hitObj);
-        if (bodyIndex >= 0) return { modelId, bodyIndex };
-      }
-    }
-    return null;
+    // 몸체 메시만 — group 에 붙는 꼭짓점 hover/선택 구슬(Mesh)은 빼고, 겹친 모델 중 가장 가까운 교차를 고른다
+    const front = this._pickFrontStepModel(raycaster);
+    return front ? { modelId: front.modelId, bodyIndex: front.hit.object.userData.bodyIndex } : null;
   }
 
   // 측정용 — 클릭 지점의 월드 좌표 + 면 법선을 포함한 raycast
@@ -690,6 +677,23 @@ export class ModelManager implements EntityPicker {
     this._notifyChange();
   }
 
+  /**
+   * 광선이 가장 먼저 닿는 보이는 STEP 몸체와 그 모델. STEP 모델은 모두 XZ 중심·바닥 y=0 으로 옮겨 서로 겹치므로,
+   * 모델을 추가 순서로 돌며 처음 맞힌 모델을 고르면 앞의 모델 대신 광선이 지나간 뒤쪽 모델이 잡혔다.
+   * 모든 모델의 보이는 몸체 메시를 한 번에 레이캐스트해 가장 가까운 교차를 고른다 (숨긴 모델·몸체·구슬 제외).
+   */
+  private _pickFrontStepModel(
+    raycaster: THREE.Raycaster,
+  ): { modelId: string; group: THREE.Group; hit: THREE.Intersection } | null {
+    const meshes: THREE.Mesh[] = [];
+    for (const group of this._stepModelGroups.values()) meshes.push(...getVisibleBodyMeshes(group));
+    const hit = raycaster.intersectObjects(meshes, false)[0];
+    if (!hit) return null;
+    const modelId: string = hit.object.userData.stepModelId;
+    const group = this._stepModelGroups.get(modelId);
+    return group ? { modelId, group, hit } : null;
+  }
+
   // STEP 모델 face 레이캐스팅
   pickStepFace(
     mouseNDC: THREE.Vector2,
@@ -698,13 +702,10 @@ export class ModelManager implements EntityPicker {
   ): { modelId: string; faceGroupId: number; point: THREE.Vector3 } | null {
     raycaster.setFromCamera(mouseNDC, activeCamera);
 
-    for (const [modelId, group] of this._stepModelGroups) {
-      const result = pickFace(raycaster, group);
-      if (result) {
-        return { modelId, ...result };
-      }
-    }
-    return null;
+    const front = this._pickFrontStepModel(raycaster);
+    if (!front) return null;
+    const result = pickFace(raycaster, front.group);
+    return result ? { modelId: front.modelId, ...result } : null;
   }
 
   // STEP 모델 edge 피킹 (screen-space distance)
@@ -717,11 +718,10 @@ export class ModelManager implements EntityPicker {
     screenHeight: number,
   ): { modelId: string; bodyIndex: number; edgeIndex: number; point: THREE.Vector3 } | null {
     raycaster.setFromCamera(mouseNDC, camera);
-    for (const [modelId, group] of this._stepModelGroups) {
-      const result = pickEdge(raycaster, group, camera, screenWidth, screenHeight, mouseScreen);
-      if (result) return { modelId, ...result };
-    }
-    return null;
+    const front = this._pickFrontStepModel(raycaster);
+    if (!front) return null;
+    const result = pickEdge(raycaster, front.group, camera, screenWidth, screenHeight, mouseScreen);
+    return result ? { modelId: front.modelId, ...result } : null;
   }
 
   // STEP 모델 vertex 피킹 (screen-space distance)
@@ -734,11 +734,10 @@ export class ModelManager implements EntityPicker {
     screenHeight: number,
   ): { modelId: string; bodyIndex: number; vertexIndex: number; point: THREE.Vector3 } | null {
     raycaster.setFromCamera(mouseNDC, camera);
-    for (const [modelId, group] of this._stepModelGroups) {
-      const result = pickVertex(raycaster, group, camera, screenWidth, screenHeight, mouseScreen);
-      if (result) return { modelId, ...result };
-    }
-    return null;
+    const front = this._pickFrontStepModel(raycaster);
+    if (!front) return null;
+    const result = pickVertex(raycaster, front.group, camera, screenWidth, screenHeight, mouseScreen);
+    return result ? { modelId: front.modelId, ...result } : null;
   }
 
   // 통합 entity picker — filter 게이팅 + depth 계산까지 매니저 책임.

@@ -107,3 +107,49 @@ test("body 픽킹도 하이라이트 구슬이 아닌 몸체의 bodyIndex 를 �
   const moved = new THREE.Vector2(at.x + 1, at.y);
   assert.deepEqual(mm.pickBody(ndcOf(moved), new THREE.Raycaster(), camera), { modelId: "M", bodyIndex: 0 });
 });
+
+test("겹친 STEP 모델 중 먼저 추가된 모델이 아니라 광선이 먼저 닿는 모델을 고른다", () => {
+  // 고치기 전에는 모델을 추가 순서로 돌며 처음 맞힌 모델을 돌려줘, 판 A 위의 기둥 B 를 가리키면
+  // 광선이 B 를 지나 맞힌 A 의 윗면이 hover·선택되었다 (모든 STEP 은 XZ 중심·바닥 y=0 으로 옮겨 서로 겹친다)
+  const mm = makeModelManager();
+  mm.addStepModel(stepModel("A", [boxBody("plate", [300, 10, 300], [0, 0, 0])]), new THREE.PerspectiveCamera());
+  mm.addStepModel(stepModel("B", [boxBody("pillar", [10, 80, 10], [0, 0, 0])]), new THREE.PerspectiveCamera());
+  for (const id of ["A", "B"]) mm.getStepModelGroup(id)!.updateMatrixWorld(true);
+
+  // B 의 앞면 (0,50,5) 을 가리킨다. 광선은 B 를 지나 A 의 윗면 (0,10,-111) 에도 닿는다
+  const camera = makeCamera(new THREE.Vector3(0, 100, 150), new THREE.Vector3(0, 30, 0));
+  const ndc = ndcOf(toScreen(new THREE.Vector3(0, 50, 5), camera));
+
+  const face = mm.pickStepFace(ndc, new THREE.Raycaster(), camera);
+  assert.equal(face?.modelId, "B");
+  assert.ok(face && Math.abs(face.point.z - 5) < 1e-4, `면 위 점=${face?.point.toArray()}`);
+  assert.deepEqual(mm.pickBody(ndc, new THREE.Raycaster(), camera), { modelId: "B", bodyIndex: 0 });
+});
+
+test("숨긴 모델·몸체는 면·엣지·꼭짓점으로 잡히지 않는다", () => {
+  // 고치기 전에는 pickBody 만 숨김을 걸렀고, 면·엣지·꼭짓점 픽킹은 숨긴 모델도 레이캐스트했다
+  const mm = makeModelManager();
+  mm.addStepModel(stepModel("A", [boxBody("plate", [300, 10, 300], [0, 0, 0])]), new THREE.PerspectiveCamera());
+  mm.getStepModelGroup("A")!.updateMatrixWorld(true);
+  const camera = makeCamera(new THREE.Vector3(0, 200, 400), new THREE.Vector3(0, 0, 0));
+
+  const facePt = toScreen(new THREE.Vector3(40, 10, 100), camera); // 윗면 안쪽
+  const edgePt = toScreen(new THREE.Vector3(40, 10, 150), camera); // 윗면·앞면 사이 엣지
+  const cornerPt = toScreen(new THREE.Vector3(150, 10, 150), camera).add(new THREE.Vector2(-2, -1)); // 꼭짓점 바로 안쪽
+  const pickAll = () => ({
+    face: mm.pickStepFace(ndcOf(facePt), new THREE.Raycaster(), camera),
+    edge: mm.pickStepEdge(ndcOf(edgePt), edgePt, new THREE.Raycaster(), camera, W, H),
+    vertex: mm.pickStepVertex(ndcOf(cornerPt), cornerPt, new THREE.Raycaster(), camera, W, H),
+  });
+
+  // 보일 때는 셋 다 잡힌다 (겨냥이 맞는지 확인)
+  const shown = pickAll();
+  assert.ok(shown.face && shown.edge && shown.vertex);
+
+  mm.setModelVisible("A", false);
+  assert.deepEqual(pickAll(), { face: null, edge: null, vertex: null });
+
+  mm.setModelVisible("A", true);
+  mm.setBodyVisible("A", 0, false);
+  assert.deepEqual(pickAll(), { face: null, edge: null, vertex: null });
+});

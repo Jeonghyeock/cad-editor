@@ -153,13 +153,14 @@ function getVertices(mesh: THREE.Mesh): THREE.Vector3[] {
 }
 
 /**
- * group 의 몸체 메시(createStepModelGroup 이 만든, userData.bodyIndex 가 숫자인 Mesh)만 모은다.
+ * group 의 보이는 몸체 메시(createStepModelGroup 이 만든, userData.bodyIndex 가 숫자인 Mesh)만 모은다 — 픽킹 대상.
  * 꼭짓점 hover/선택 구슬도 group 에 붙는 Mesh 라, 함께 레이캐스트하면 구슬을 맞혀 엉뚱한 bodyIndex 와
  * 구슬의 꼭짓점을 돌려주고 occlusion 검사에서 꼭짓점이 자기 구슬에 가려진다.
+ * Raycaster 는 visible 을 보지 않으므로, 숨긴 모델(group)·몸체(mesh)는 traverseVisible 로 여기서 뺀다.
  */
-function getBodyMeshes(group: THREE.Group): THREE.Mesh[] {
+export function getVisibleBodyMeshes(group: THREE.Group): THREE.Mesh[] {
   const meshes: THREE.Mesh[] = [];
-  group.traverse((child) => {
+  group.traverseVisible((child) => {
     if (child instanceof THREE.Mesh && typeof child.userData.bodyIndex === "number") meshes.push(child);
   });
   return meshes;
@@ -388,7 +389,7 @@ export const pickFace = (
   raycaster: THREE.Raycaster,
   group: THREE.Group,
 ): { faceGroupId: number; point: THREE.Vector3 } | null => {
-  const meshes = getBodyMeshes(group);
+  const meshes = getVisibleBodyMeshes(group);
 
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
@@ -419,7 +420,7 @@ export const pickEdge = (
   screenHeight: number,
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; edgeIndex: number; point: THREE.Vector3 } | null => {
-  const meshes = getBodyMeshes(group);
+  const meshes = getVisibleBodyMeshes(group);
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
 
@@ -476,7 +477,7 @@ export const pickVertex = (
   screenHeight: number,
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; vertexIndex: number; point: THREE.Vector3 } | null => {
-  const meshes = getBodyMeshes(group);
+  const meshes = getVisibleBodyMeshes(group);
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
 
