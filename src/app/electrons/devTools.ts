@@ -7,14 +7,15 @@ export const installReactDevTools = async () =>
 
 /**
  * electron-devtools-installer 는 CommonJS 모듈이라 번들러·로더의 interop 에 따라 import() 의 default 가 설치 함수이거나,
- * module.exports 전체(설치 함수는 그 안의 default)로 풀린다. 어느 쪽이든 함수를 꺼내 React DevTools 를 설치한다.
+ * module.exports 전체(설치 함수는 그 안의 default)로 풀리고, default 없이 모듈 자체가 함수일 수도 있다.
+ * 어느 쪽이든 처음 나오는 함수를 꺼내 React DevTools 를 설치한다.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const installReactDevToolsFrom = (mod: any): Promise<string> => {
-  const exported = mod.default;
-  const installExtension =
-    typeof exported === "function" ? exported : exported.default;
+  const installExtension = [mod.default, mod.default?.default, mod].find(
+    (candidate) => typeof candidate === "function",
+  );
   const reactDevTools =
-    mod.REACT_DEVELOPER_TOOLS ?? exported.REACT_DEVELOPER_TOOLS;
+    mod.REACT_DEVELOPER_TOOLS ?? mod.default?.REACT_DEVELOPER_TOOLS;
   return installExtension(reactDevTools);
 };
