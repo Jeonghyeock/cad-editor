@@ -4,5 +4,6 @@
   "dialog.driven.cancel": "Cancel",
   "errorBoundary.title": "An unexpected error occurred",
   "errorBoundary.unknown": "Unknown error",
-  "errorBoundary.goHome": "Go to Home"
+  "errorBoundary.goHome": "Go to Home",
+  "toast.stepImportDiscarded": "\"{{name}}\" was not imported because the open file changed while it was loading. Please import it again."
 }

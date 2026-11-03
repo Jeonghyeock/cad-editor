@@ -1,4 +1,5 @@
-﻿import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+﻿import { t } from "i18next";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { contextMenuAtom } from "src/shared/stores/App.store";
@@ -6,6 +7,7 @@ import {
   fileDataAtomFamily,
   fileIdAtom,
 } from "src/shared/stores/File.store";
+import { addToastAtom } from "src/shared/stores/Toast.store";
 
 import AnimateConstraintPanel from "./components/AnimateConstraintPanel";
 import ConstraintDefinitionPanel from "./components/ConstraintDefinitionPanel";
@@ -461,8 +463,12 @@ const Input = () => {
           },
         );
         if (!model) {
-          // eslint-disable-next-line no-console
-          console.warn("STEP 파일을 불러오는 동안 파일이 바뀌어 결과를 버림:", file.name);
+          // 다른 탭으로 바꿨거나, 드물게 같은 탭에서 Save As 로 fileId 가 바뀐 경우다. 가져오기가 조용히 사라지지
+          // 않게 알린다.
+          store.set(addToastAtom, {
+            type: "info",
+            message: t("toast.stepImportDiscarded", { name: file.name }),
+          });
           return;
         }
         const getScene = () => sceneRef.current;
