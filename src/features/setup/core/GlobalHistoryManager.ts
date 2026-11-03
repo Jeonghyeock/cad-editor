@@ -71,8 +71,9 @@ export function applyGeometryCommand(
 /**
  * Listener event 종류. caller 는 종류별로 다른 처리 가능 — 예) "clear" 는 시스템 reset
  * (파일 전환 등) 이지 사용자 의도가 아니므로 flushInputSync 같은 sync 트리거는 skip.
+ * "sketch" 는 스케치 진입·종료 — 스택은 그대로지만 canUndo/canRedo 가 바뀔 수 있다 (역시 sync 트리거는 skip).
  */
-export type HistoryEvent = "push" | "undo" | "redo" | "clear";
+export type HistoryEvent = "push" | "undo" | "redo" | "clear" | "sketch";
 
 export class GlobalHistoryManager {
   private _stack: GlobalEntry[] = [];
@@ -99,6 +100,8 @@ export class GlobalHistoryManager {
    */
   setActiveSketch(planeKey: string | null): void {
     this._activeSketchKey = planeKey ? `${planeKey}#${this._sketchGenerations.get(planeKey) ?? 0}` : null;
+    // 스택은 그대로지만 막힌 엔트리가 바뀌어 canUndo/canRedo 가 달라질 수 있다
+    this._notifyListeners("sketch");
   }
 
   /** 스케치를 지울 때 (DeleteSketchCommand.execute) — 이 평면에 새로 여는 스케치는 다른 스케치로 본다. */
@@ -186,7 +189,7 @@ export class GlobalHistoryManager {
   // - 건너뛰면 인덱스 아래에 적용된 엔트리와 되돌린 엔트리가 섞여, 나중에 그 스케치에서 redo 할 때 순서가 어긋난다.
   // 그 스케치를 다시 열면 멈춘 자리부터 이어서 undo/redo 한다(자동으로 스케치를 다시 열지는 않는다).
   // 열린 스케치가 없을 때(키 null·"") 실행한 기하 명령은 기록하지 않는다 — 적용할 스케치가 없는 엔트리를 만들지 않는다.
-  // canUndo/canRedo 는 스택 위치만 본다 — 막힌 동안에도 툴바 버튼은 켜져 있고, 눌러도 아무 일도 일어나지 않는다.
+  // 막힌 동안 canUndo/canRedo 는 false 이고, 스케치를 열고 닫을 때 "sketch" 이벤트로 툴바 상태를 다시 맞춘다.
 
   /** 기하 엔트리가 지금 열린 스케치의 것이 아니면 true */
   private _isOtherSketch(entry: GlobalEntry): boolean {
@@ -250,12 +253,13 @@ export class GlobalHistoryManager {
     return entry.source;
   }
 
+  // 막힌 엔트리 앞이면 false — 툴바 버튼이 켜진 채 눌러도 아무 일이 없지 않게.
   get canUndo(): boolean {
-    return this._index >= 0;
+    return this._index >= 0 && !this._isOtherSketch(this._stack[this._index]);
   }
 
   get canRedo(): boolean {
-    return this._index < this._stack.length - 1;
+    return this._index < this._stack.length - 1 && !this._isOtherSketch(this._stack[this._index + 1]);
   }
 
   // --- 렌더 리스너 (atom 동기화용) ---
