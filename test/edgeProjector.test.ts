@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SerializedGeometry, StepModelData, Vec3 } from "src/features/setup/Setup.type";
-import { projectModelEdgesToSketch } from "src/features/setup/step/EdgeProjector";
+import { polylineToGeometry, projectModelEdgesToSketch } from "src/features/setup/step/EdgeProjector";
 
 import { XY } from "./fixtures/brepEdges";
 
@@ -96,4 +96,29 @@ test("메시 폴백 투영이 거칠게 테셀레이션된 구멍·원기둥은 
   const [g] = geoms;
   assert.ok(g.type === "circle");
   assert.ok(Math.abs(g.cx - 5) < 1e-9 && Math.abs(g.cy - 5) < 1e-9 && Math.abs(g.r - 1) < 1e-9);
+});
+
+// 중심 (0,0), 반지름 5 원 위에서 각 deg[i](도) 의 점들
+const onCircle = (degs: number[]) =>
+  degs.map((d) => ({ x: 5 * Math.cos((d * Math.PI) / 180), y: 5 * Math.sin((d * Math.PI) / 180) }));
+const arcSweep = (g: SerializedGeometry & { type: "arc" }) => {
+  let sweep = g.endAngle - g.startAngle;
+  if (sweep <= 0) sweep += Math.PI * 2;
+  return sweep;
+};
+
+test("열린 경계가 시계 방향으로 돌아도 같은 90° 호가 된다 (보각 호가 아니다)", () => {
+  // 스케치 호는 startAngle→endAngle 반시계다. 고치기 전에는 첫 점을 시작으로 고정해, 시계 방향 체인이 270° 호가 됐다
+  for (const degs of [[0, 15, 30, 45, 60, 75, 90], [90, 75, 60, 45, 30, 15, 0]]) {
+    const g = polylineToGeometry(onCircle(degs));
+    assert.ok(g?.type === "arc", JSON.stringify(g));
+    assert.ok(Math.abs(arcSweep(g) - Math.PI / 2) < 1e-9, `${degs}: sweep ${arcSweep(g)}`);
+    assert.ok(Math.abs(Math.cos(g.startAngle) - 1) < 1e-9, `${degs}: start ${g.startAngle}`);
+  }
+});
+
+test("같은 호를 갔다 되돌아오는 열린 경계는 호로 보지 않는다", () => {
+  // 0° → 90° 를 갔다가 45° 로 되돌아온다. 고치기 전에는 첫·끝 점만 보아 0°~45° 호가 됐다
+  const g = polylineToGeometry(onCircle([0, 15, 30, 45, 60, 75, 90, 75, 60, 45]));
+  assert.notEqual(g?.type, "arc", JSON.stringify(g));
 });

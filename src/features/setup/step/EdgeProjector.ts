@@ -36,6 +36,14 @@ const isClosed = (pts: Vec2[], epsilon = 1e-4): boolean => {
 // 이보다 거친 경계(정팔각형 45°, 육각형, 사각형, 삼각형)는 실제 다각형 면과 구별할 수 없으므로 원·호로 보지 않는다.
 const MAX_SEGMENT_ANGLE = (40 * Math.PI) / 180;
 
+// 두 2D 벡터 사이 부호 있는 각 (a 에서 b 로 반시계면 +, [-π, π])
+const angleBetween = (ax: number, ay: number, bx: number, by: number): number =>
+  Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+
+// 중심 (cx, cy) 에서 본 a → b 의 부호 있는 중심각
+const centralAngle = (a: Vec2, b: Vec2, cx: number, cy: number): number =>
+  angleBetween(a.x - cx, a.y - cy, b.x - cx, b.y - cy);
+
 // 3점으로 원 피팅 (닫힌 polyline용)
 const fitCircle = (pts: Vec2[]): { cx: number; cy: number; r: number } | null => {
   if (pts.length < 3) return null;
@@ -65,9 +73,7 @@ const fitCircle = (pts: Vec2[]): { cx: number; cy: number; r: number } | null =>
   // 꼭짓점만 보면 직사각형·삼각형처럼 외접원 위에 꼭짓점이 놓인 다각형도 원이 된다.
   // 이웃한 점 사이 중심각이 작아야(= 선분 중점도 원에 가까워야) 원·호로 본다
   for (let i = 1; i < pts.length; i++) {
-    const ax = pts[i - 1].x - cx, ay = pts[i - 1].y - cy;
-    const bx = pts[i].x - cx, by = pts[i].y - cy;
-    if (Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by)) > MAX_SEGMENT_ANGLE) return null;
+    if (Math.abs(centralAngle(pts[i - 1], pts[i], cx, cy)) > MAX_SEGMENT_ANGLE) return null;
   }
   return { cx, cy, r };
 };
@@ -103,17 +109,29 @@ const fitArc = (pts: Vec2[]): { cx: number; cy: number; r: number; startAngle: n
   const circle = fitCircle(pts);
   if (!circle) return null;
 
-  const startAngle = Math.atan2(pts[0].y - circle.cy, pts[0].x - circle.cx);
-  const endAngle = Math.atan2(pts[pts.length - 1].y - circle.cy, pts[pts.length - 1].x - circle.cx);
+  // 점들이 한 방향으로만 돌아야 호다. 같은 호를 갔다 되돌아오는 체인은 첫·끝 점만으로 범위를 정할 수 없다
+  let ccw = 0, cw = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = centralAngle(pts[i - 1], pts[i], circle.cx, circle.cy);
+    if (d > 0) ccw++;
+    else if (d < 0) cw++;
+  }
+  if (ccw > 0 && cw > 0) return null;
 
-  return { ...circle, startAngle, endAngle };
+  const firstAngle = Math.atan2(pts[0].y - circle.cy, pts[0].x - circle.cx);
+  const lastAngle = Math.atan2(pts[pts.length - 1].y - circle.cy, pts[pts.length - 1].x - circle.cx);
+  // 스케치 호는 startAngle→endAngle 반시계로 그린다. 점들이 시계 방향으로 돌면 양 끝을 바꿔야 보각 호가 되지 않는다
+  return cw > 0
+    ? { ...circle, startAngle: lastAngle, endAngle: firstAngle }
+    : { ...circle, startAngle: firstAngle, endAngle: lastAngle };
 };
 
 // 고유 ID 생성
 const generateId = (): string => generateProjectionId();
 
-// 2D polyline → SerializedGeometry 변환 (참조 기하)
-const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
+// 2D polyline → SerializedGeometry 변환 (참조 기하).
+// 면 경계는 거의 언제나 닫혀 있어 열린 polyline(호 판별)은 메시로 만들기 어렵다 — 테스트가 직접 부르도록 내보낸다
+export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
   if (pts.length < 2) return null;
 
   // 직선 판별
