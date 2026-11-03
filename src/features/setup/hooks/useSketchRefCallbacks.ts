@@ -8,8 +8,10 @@ import { useEffect, useRef } from "react";
 import type SetupScene from "../rendering/SetupScene";
 import { sketchCommandsAtom } from "../Setup.store";
 import type { SketchDrawToolType, StepModelData } from "../Setup.type";
+import { AddConstraintCommand } from "../sketch/commands/AddConstraintCommand";
 import { AddGeometryCommand } from "../sketch/commands/AddGeometryCommand";
 import { BatchCommand } from "../sketch/commands/BatchCommand";
+import { RemoveConstraintCommand } from "../sketch/commands/RemoveConstraintCommand";
 import { detectAutoConstraints } from "../sketch/constraints/AutoConstraintAnalyzer";
 import type { DimensionConstraintType } from "../sketch/constraints/ConstraintValidator";
 import { createConstraintFromSelection, createDimensionConstraint, findEquivalentConstraint } from "../sketch/constraints/ConstraintValidator";
@@ -283,10 +285,15 @@ export const useSketchRefCallbacks = ({
       if (editId && geoStore.constraintStore) {
         const existing = geoStore.constraintStore.constraints.get(editId);
         if (existing && "value" in existing) {
-          // 기존 구속 삭제 후 새 값으로 재생성
-          geoStore.removeConstraintById(editId);
+          // 기존 구속 삭제 후 새 값으로 재생성 — 삭제·추가를 한 커맨드로 묶어 히스토리 한 칸으로 둔다(따로 쌓으면
+          // Ctrl+Z 한 번에 치수만 사라진다). 새 값이 상충하면(over-constrained/error) 적용하지 않고 되돌린다.
           const updated = { ...existing, value } as typeof existing;
-          geoStore.applyConstraint(updated);
+          geoStore.tryExecute(
+            new BatchCommand([
+              new RemoveConstraintCommand(existing),
+              new AddConstraintCommand(updated),
+            ]),
+          );
           geoStore.selectedConstraintId = null;
           geoStore.requestRender();
           return;
