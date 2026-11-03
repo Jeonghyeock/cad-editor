@@ -96,6 +96,36 @@ test("ViewCube 로 위에서 본 뒤 궤도 회전해도 화면이 눕지 않는
   assert.ok(screenUpOf(cam).y > 0.4, `화면 위쪽=${screenUpOf(cam).toArray()}`);
 });
 
+test("up=(0,0,-1) 로 저장된 카메라 상태를 적용해도 궤도 회전이 눕지 않는다", () => {
+  // 고치기 전에는 applyCameraState 가 저장된 up 을 그대로 써서, 예전 빌드가 ViewCube 위 뷰 뒤에 남긴
+  // up=(0,0,-1) 상태를 되살리면 #36 과 같이 궤도 회전에서 화면이 누웠다
+  const sm = makeSceneManager();
+  sm.applyCameraState({
+    persp: { position: [0, 200, 0.0002], quaternion: [0, 0, 0, 1], up: [0, 0, -1] },
+    target: [0, 0, 0],
+  });
+  assert.deepEqual(sm.perspCamera.up.toArray(), [0, 1, 0]);
+
+  // 옆으로 90° 돌고 0.5 rad 내려오는 궤도 회전 뒤에도 월드 Y 가 화면 위쪽을 향한다
+  const orbit = sm.controls as unknown as { _rotateLeft(a: number): void; _rotateUp(a: number): void };
+  orbit._rotateLeft(Math.PI / 2);
+  orbit._rotateUp(-0.5);
+  sm.controls.update();
+  assert.ok(screenUpOf(sm.perspCamera).y > 0.4, `화면 위쪽=${screenUpOf(sm.perspCamera).toArray()}`);
+});
+
+test("ViewCube 애니메이션이 스케치 진입으로 끊겨도 3D 로 돌아오면 up 은 (0,1,0) 이다", async () => {
+  // 고치기 전에는 switchToPersp 가 보간 중이던 up 을 그대로 되살려 이후 궤도 회전이 기울었다
+  const sm = makeSceneManager();
+  sm.animateCameraToDirection(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1));
+  await new Promise((resolve) => setTimeout(resolve, 100)); // 300ms 애니메이션의 앞부분만
+  assert.notDeepEqual(sm.perspCamera.up.toArray(), [0, 1, 0]); // 보간 중
+  sm.placeCameraAtPlane(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1), new Map()); // 애니메이션 취소
+  sm.switchToOrtho(() => {}, new THREE.Vector3(0, 1, 0));
+  sm.switchToPersp();
+  assert.deepEqual(sm.perspCamera.up.toArray(), [0, 1, 0]);
+});
+
 test("스케치 평면이 수평이어도 스케치 H 축은 화면 오른쪽, V 축은 화면 위쪽을 향한다", () => {
   // 고치기 전에는 ortho 카메라 up 을 perspective 의 (0,1,0) 그대로 써서, 수평 평면(|n.y|≥0.9 라 upHint 가 X)에서
   // 스케치 축이 화면 기준 90° 돌았다(ZX 평면에서 H=+Z 가 화면 아래). 원점이 아닌 윗면은 법선의 부동소수 잔차에

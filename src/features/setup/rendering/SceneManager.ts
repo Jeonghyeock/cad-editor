@@ -412,7 +412,9 @@ export class SceneManager {
     if (this._savedCameraState) {
       this._perspCamera.position.copy(this._savedCameraState.position);
       this._perspCamera.quaternion.copy(this._savedCameraState.quaternion);
-      this._perspCamera.up.copy(this._savedCameraState.up);
+      // 궤도 회전(OrbitControls)은 (0,1,0) 을 축으로 돈다. 스케치 진입으로 끊긴 ViewCube 애니메이션이 보간 중이던
+      // up 을 남겼더라도 3D 로 돌아올 때는 (0,1,0) 으로 둔다.
+      this._perspCamera.up.set(0, 1, 0);
       this.controls.target.copy(this._savedCameraState.target);
       this._savedCameraState = null;
     }
@@ -469,7 +471,9 @@ export class SceneManager {
     }
     this._perspCamera.position.set(...state.persp.position);
     this._perspCamera.quaternion.set(...state.persp.quaternion);
-    this._perspCamera.up.set(...state.persp.up);
+    // 저장된 up 은 쓰지 않고 (0,1,0) 으로 둔다 — 궤도 회전은 (0,1,0) 을 축으로 도는데, 예전 빌드는 ViewCube 위 뷰
+    // 뒤에 up=(0,0,-1) 을 남겨 그 상태를 되살리면 회전에서 화면이 눕거나 뒤집혔다.
+    this._perspCamera.up.set(0, 1, 0);
     this.controls.target.set(...state.target);
     this.controls.update();
     this.requestRender();
