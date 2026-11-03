@@ -901,9 +901,14 @@ export class SketchConstraintSolver {
             // 부호는 line direction 의 자연 cross product 로 매칭 (line 회전 없음).
             const isObtuse = c.isAcute === false;
             const enforceDeg = isObtuse ? (180 - c.value) : c.value;
+            // DimensionPanel 은 0~360° 를 받는다. 반사각 (200° 등) 이나 보각 표시의 보반사각 (enforce 가
+            // 음수) 을 그대로 넘기면 planegcs 가 360° 주기로 감아 (200° → -160°) 선을 A 의 반대편으로
+            // 뒤집는다. 같은 두 선 사이각인 0~180° 크기로 접고, 부호는 아래에서 지금 선이 있는 쪽으로 정한다.
+            const wrappedDeg = ((enforceDeg % 360) + 360) % 360;
+            const magnitudeDeg = wrappedDeg > 180 ? 360 - wrappedDeg : wrappedDeg;
             const lA = geometries.get(c.lineA.geomId);
             const lB = geometries.get(c.lineB.geomId);
-            let signedRad = enforceDeg * Math.PI / 180;
+            let signedRad = magnitudeDeg * Math.PI / 180;
             if (lA?.type === "line" && lB?.type === "line") {
               const dxA = lA.x2 - lA.x1, dyA = lA.y2 - lA.y1;
               const dxB = lB.x2 - lB.x1, dyB = lB.y2 - lB.y1;
