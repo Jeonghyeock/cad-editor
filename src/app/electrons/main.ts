@@ -10,6 +10,7 @@ import { FileChannels } from "src/app/channels/fileChannels";
 import { MenuChannels } from "src/app/channels/menuChannels";
 
 import { createAppWindow } from "./appWindow";
+import { sendOpenFile } from "./sendOpenFile";
 
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 
@@ -90,7 +91,8 @@ if (!gotTheLock) {
 } else {
   let isAppWindowCreated = false;
   let appWindow: BrowserWindow | null = null;
-  let pendingFilePath: string | null = null;
+  // 창이 생기기 전(macOS 콜드 스타트)에 open-file 로 받은 경로. whenReady 에서 창을 만든 뒤 연다.
+  const pendingFilePaths: string[] = [];
 
   /**
    * 안전하게 app window를 생성하고, 중복 방지
@@ -104,48 +106,38 @@ if (!gotTheLock) {
   };
 
   /**
+   * 실행 중인 창을 앞으로 가져오고 파일을 연다
+   */
+  const openFileInAppWindow = (filePath?: string) => {
+    if (!appWindow) return;
+
+    if (appWindow.isMinimized()) appWindow.restore();
+    appWindow.focus();
+
+    if (filePath) sendOpenFile(appWindow.webContents, filePath);
+  };
+
+  /**
    * Windows/Linux: 앱이 이미 실행 중일 때 .cad 파일 더블클릭 시
    */
   app.on("second-instance", (_event, commandLine) => {
-    const filePath = commandLine.find((arg) => arg.endsWith(".cad"));
-
-    if (appWindow) {
-      if (appWindow.isMinimized()) appWindow.restore();
-      appWindow.focus();
-
-      if (filePath) {
-        appWindow.webContents.send(
-          MenuChannels.MENU_EVENT,
-          FileChannels.OPEN_FILE,
-          filePath,
-        );
-      }
-    }
+    openFileInAppWindow(commandLine.find((arg) => arg.endsWith(".cad")));
   });
 
   /**
-   * macOS에서 .cad 파일 더블클릭하여 실행 시
+   * macOS: .cad 파일 더블클릭으로 실행할 때와 이미 실행 중일 때
    */
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
 
-    const openFileSafely = () => {
-      const win = ensureAppWindow();
-      win.once("ready-to-show", () => {
-        win.webContents.send(
-          MenuChannels.MENU_EVENT,
-          FileChannels.OPEN_FILE,
-          filePath,
-        );
-      });
-    };
-
-    if (app.isReady()) {
-      openFileSafely();
-    } else {
-      pendingFilePath = filePath;
-      app.once("ready", () => openFileSafely());
+    // 창이 생기기 전(콜드 스타트)이면 whenReady 가 창을 만든 뒤 한 번만 연다. 이미 실행 중이면 second-instance 와
+    // 같이 연다 — 예전처럼 ready-to-show 를 기다리면 이미 지나간 이벤트라 열리지 않았다.
+    if (!appWindow) {
+      pendingFilePaths.push(filePath);
+      return;
     }
+
+    openFileInAppWindow(filePath);
   });
 
   /**
@@ -159,14 +151,18 @@ if (!gotTheLock) {
 
     const win = ensureAppWindow();
 
-    const filePath = pendingFilePath || cliFilePath;
-    if (filePath) {
+    const filePaths = pendingFilePaths.length
+      ? pendingFilePaths
+      : [cliFilePath].filter(Boolean);
+    if (filePaths.length) {
       win.webContents.once("did-finish-load", () => {
-        win.webContents.send(
-          MenuChannels.MENU_EVENT,
-          FileChannels.OPEN_FILE,
-          filePath,
-        );
+        for (const filePath of filePaths) {
+          win.webContents.send(
+            MenuChannels.MENU_EVENT,
+            FileChannels.OPEN_FILE,
+            filePath,
+          );
+        }
       });
     }
 
