@@ -702,10 +702,9 @@ export class ModelManager implements EntityPicker {
   ): { modelId: string; faceGroupId: number; point: THREE.Vector3 } | null {
     raycaster.setFromCamera(mouseNDC, activeCamera);
 
+    // 앞 모델을 고른 교차를 그대로 넘긴다 — 같은 광선으로 그 모델을 다시 레이캐스트하지 않는다
     const front = this._pickFrontStepModel(raycaster);
-    if (!front) return null;
-    const result = pickFace(raycaster, front.group);
-    return result ? { modelId: front.modelId, ...result } : null;
+    return front ? { modelId: front.modelId, ...pickFace(front.hit) } : null;
   }
 
   // STEP 모델 edge 피킹 (screen-space distance)
@@ -720,7 +719,7 @@ export class ModelManager implements EntityPicker {
     raycaster.setFromCamera(mouseNDC, camera);
     const front = this._pickFrontStepModel(raycaster);
     if (!front) return null;
-    const result = pickEdge(raycaster, front.group, camera, screenWidth, screenHeight, mouseScreen);
+    const result = pickEdge(front.hit, front.group, camera, screenWidth, screenHeight, mouseScreen);
     return result ? { modelId: front.modelId, ...result } : null;
   }
 
@@ -736,7 +735,7 @@ export class ModelManager implements EntityPicker {
     raycaster.setFromCamera(mouseNDC, camera);
     const front = this._pickFrontStepModel(raycaster);
     if (!front) return null;
-    const result = pickVertex(raycaster, front.group, camera, screenWidth, screenHeight, mouseScreen);
+    const result = pickVertex(front.hit, front.group, camera, screenWidth, screenHeight, mouseScreen);
     return result ? { modelId: front.modelId, ...result } : null;
   }
 

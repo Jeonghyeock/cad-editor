@@ -383,18 +383,12 @@ export const highlightFace = (
 };
 
 /**
- * Raycasting으로 face group ID 감지
+ * 레이캐스트 교차로 face group ID 감지. hit 은 ModelManager 가 모든 모델의 보이는 몸체 메시
+ * (getVisibleBodyMeshes)를 한 번에 레이캐스트해 고른 가장 앞의 교차다 — 같은 광선으로 다시 레이캐스트하지 않는다.
  */
 export const pickFace = (
-  raycaster: THREE.Raycaster,
-  group: THREE.Group,
-): { faceGroupId: number; point: THREE.Vector3 } | null => {
-  const meshes = getVisibleBodyMeshes(group);
-
-  const intersections = raycaster.intersectObjects(meshes);
-  if (intersections.length === 0) return null;
-
-  const hit = intersections[0];
+  hit: THREE.Intersection,
+): { faceGroupId: number; point: THREE.Vector3 } => {
   const hitMesh = hit.object as THREE.Mesh;
   const offset: number = hitMesh.userData.faceIdOffset ?? 0;
 
@@ -410,10 +404,11 @@ export const pickFace = (
 };
 
 /**
- * Edge picking: screen-space distance 기반
+ * Edge picking: screen-space distance 기반. hit 은 커서 아래 가장 앞의 몸체 교차(pickFace 와 같음),
+ * group 은 그 몸체가 속한 모델 — 가림 검사에 그 모델의 보이는 몸체 메시를 쓴다.
  */
 export const pickEdge = (
-  raycaster: THREE.Raycaster,
+  hit: THREE.Intersection,
   group: THREE.Group,
   camera: THREE.Camera,
   screenWidth: number,
@@ -421,10 +416,7 @@ export const pickEdge = (
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; edgeIndex: number; point: THREE.Vector3 } | null => {
   const meshes = getVisibleBodyMeshes(group);
-  const intersections = raycaster.intersectObjects(meshes);
-  if (intersections.length === 0) return null;
-
-  const hitMesh = intersections[0].object as THREE.Mesh;
+  const hitMesh = hit.object as THREE.Mesh;
   const bodyIndex: number = hitMesh.userData.bodyIndex;
   const edges = getEdges(hitMesh);
   const camPos = camera.position;
@@ -467,10 +459,10 @@ export const pickEdge = (
 };
 
 /**
- * Vertex picking: screen-space distance 기반
+ * Vertex picking: screen-space distance 기반. hit·group 은 pickEdge 와 같다.
  */
 export const pickVertex = (
-  raycaster: THREE.Raycaster,
+  hit: THREE.Intersection,
   group: THREE.Group,
   camera: THREE.Camera,
   screenWidth: number,
@@ -478,10 +470,7 @@ export const pickVertex = (
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; vertexIndex: number; point: THREE.Vector3 } | null => {
   const meshes = getVisibleBodyMeshes(group);
-  const intersections = raycaster.intersectObjects(meshes);
-  if (intersections.length === 0) return null;
-
-  const hitMesh = intersections[0].object as THREE.Mesh;
+  const hitMesh = hit.object as THREE.Mesh;
   const bodyIndex: number = hitMesh.userData.bodyIndex;
   const vertices = getVertices(hitMesh);
   const camPos = camera.position;

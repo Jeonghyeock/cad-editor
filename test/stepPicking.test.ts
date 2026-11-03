@@ -8,7 +8,6 @@ import { test } from "node:test";
 
 import { ModelManager } from "src/features/setup/rendering/ModelManager";
 import type { StepBodyData, StepModelData } from "src/features/setup/Setup.type";
-import { createStepModelGroup, highlightVertex, pickFace, pickVertex } from "src/features/setup/step/StepModelManager";
 
 // 화면 800×600, 실제 three.js 카메라·Raycaster 로 픽킹한다.
 const W = 800;
@@ -28,12 +27,6 @@ const toScreen = (p: THREE.Vector3, camera: THREE.Camera) => {
 };
 
 const ndcOf = (screen: THREE.Vector2) => new THREE.Vector2((screen.x / W) * 2 - 1, 1 - (screen.y / H) * 2);
-
-function rayAt(screen: THREE.Vector2, camera: THREE.Camera): THREE.Raycaster {
-  const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera(ndcOf(screen), camera);
-  return raycaster;
-}
 
 // 중심 (cx,cy,cz), 크기 (sx,sy,sz) 상자 몸체
 function boxBody(name: string, size: [number, number, number], center: [number, number, number]): StepBodyData {
@@ -59,52 +52,45 @@ function makeModelManager(): ModelManager {
   return new ModelManager(new THREE.Scene(), controls);
 }
 
-test("꼭짓점 하이라이트 구슬을 맞혀도 몸체의 꼭짓점·면·bodyIndex 를 돌려준다", () => {
-  // 고치기 전에는 group.traverse 로 모은 Mesh 에 하이라이트 구슬까지 들어가, 꼭짓점에 hover 한 뒤 1px 움직이면
-  // 구슬을 맞혀 bodyIndex 가 0↔1 로 번갈아 나오고 구슬의 꼭짓점(꼭짓점에서 1.2 벗어난 곳)을 돌려주었다
-  const group = createStepModelGroup(stepModel("M", [boxBody("box", [10, 10, 10], [0, 0, 0])]));
-  group.updateMatrixWorld(true);
-  const camera = makeCamera(new THREE.Vector3(30, 25, 40), new THREE.Vector3(0, 0, 0));
-  const corner = new THREE.Vector3(5, 5, 5); // 카메라 쪽 꼭짓점 — 실루엣 한가운데
-  const at = toScreen(corner, camera);
-
-  const first = pickVertex(rayAt(at, camera), group, camera, W, H, at);
-  assert.ok(first);
-  assert.equal(first.bodyIndex, 0);
-  assert.ok(first.point.distanceTo(corner) < 1e-4);
-
-  // hover 표시 후 다음 렌더처럼 행렬을 갱신하고 1px 옆에서 다시 고른다
-  highlightVertex(group, first.bodyIndex, first.vertexIndex);
-  group.updateMatrixWorld(true);
-  const moved = new THREE.Vector2(at.x + 1, at.y);
-  const again = pickVertex(rayAt(moved, camera), group, camera, W, H, moved);
-  assert.ok(again);
-  assert.equal(again.bodyIndex, 0);
-  assert.ok(again.point.distanceTo(corner) < 1e-4, `꼭짓점=${again.point.toArray()}`);
-
-  // 면 픽킹도 구슬 표면이 아니라 상자 표면의 점을 돌려준다
-  const face = pickFace(rayAt(moved, camera), group);
-  assert.ok(face);
-  const maxCoord = Math.max(Math.abs(face.point.x), Math.abs(face.point.y), Math.abs(face.point.z));
-  assert.ok(Math.abs(maxCoord - 5) < 1e-4, `면 위 점=${face.point.toArray()}`);
-});
-
-test("body 픽킹도 하이라이트 구슬이 아닌 몸체의 bodyIndex 를 돌려준다", () => {
+// 10×10×10 상자 하나를 넣고 카메라 쪽 꼭짓점에 hover 구슬을 띄운 상태. moved 는 꼭짓점에서 1px 옆(구슬 위).
+function boxWithHoveredCorner() {
   const mm = makeModelManager();
   mm.addStepModel(stepModel("M", [boxBody("box", [10, 10, 10], [0, 0, 0])]), new THREE.PerspectiveCamera());
   const group = mm.getStepModelGroup("M")!;
   group.updateMatrixWorld(true);
-  // addStepModel 이 바닥을 y=0 으로 옮기므로 카메라 쪽 꼭짓점은 (5,10,5)
+  // addStepModel 이 바닥을 y=0 으로 옮기므로 카메라 쪽 꼭짓점은 (5,10,5) — 실루엣 한가운데
   const camera = makeCamera(new THREE.Vector3(30, 30, 40), new THREE.Vector3(0, 5, 0));
   const corner = new THREE.Vector3(5, 10, 5);
   const at = toScreen(corner, camera);
   const v = mm.pickStepVertex(ndcOf(at), at, new THREE.Raycaster(), camera, W, H);
   assert.ok(v);
+  assert.equal(v.bodyIndex, 0);
   assert.ok(v.point.distanceTo(corner) < 1e-4);
+  // hover 표시 후 다음 렌더처럼 행렬을 갱신한다
   mm.highlightVertex("M", v.bodyIndex, v.vertexIndex);
   group.updateMatrixWorld(true);
+  return { mm, camera, corner, moved: new THREE.Vector2(at.x + 1, at.y) };
+}
 
-  const moved = new THREE.Vector2(at.x + 1, at.y);
+test("꼭짓점 하이라이트 구슬을 맞혀도 몸체의 꼭짓점·면·bodyIndex 를 돌려준다", () => {
+  // 고치기 전에는 group.traverse 로 모은 Mesh 에 하이라이트 구슬까지 들어가, 꼭짓점에 hover 한 뒤 1px 움직이면
+  // 구슬을 맞혀 bodyIndex 가 0↔1 로 번갈아 나오고 구슬의 꼭짓점(꼭짓점에서 1.2 벗어난 곳)을 돌려주었다
+  const { mm, camera, corner, moved } = boxWithHoveredCorner();
+
+  const again = mm.pickStepVertex(ndcOf(moved), moved, new THREE.Raycaster(), camera, W, H);
+  assert.ok(again);
+  assert.equal(again.bodyIndex, 0);
+  assert.ok(again.point.distanceTo(corner) < 1e-4, `꼭짓점=${again.point.toArray()}`);
+
+  // 면 픽킹도 구슬 표면이 아니라 상자 표면(중심 (0,5,0), 반 변 5)의 점을 돌려준다
+  const face = mm.pickStepFace(ndcOf(moved), new THREE.Raycaster(), camera);
+  assert.ok(face);
+  const p = face.point;
+  assert.ok(Math.abs(Math.max(Math.abs(p.x), Math.abs(p.y - 5), Math.abs(p.z)) - 5) < 1e-4, `면 위 점=${p.toArray()}`);
+});
+
+test("body 픽킹도 하이라이트 구슬이 아닌 몸체의 bodyIndex 를 돌려준다", () => {
+  const { mm, camera, moved } = boxWithHoveredCorner();
   assert.deepEqual(mm.pickBody(ndcOf(moved), new THREE.Raycaster(), camera), { modelId: "M", bodyIndex: 0 });
 });
 
@@ -152,4 +138,27 @@ test("숨긴 모델·몸체는 면·엣지·꼭짓점으로 잡히지 않는다"
   mm.setModelVisible("A", true);
   mm.setBodyVisible("A", 0, false);
   assert.deepEqual(pickAll(), { face: null, edge: null, vertex: null });
+});
+
+test("면·엣지·꼭짓점 픽킹은 앞 모델을 고른 레이캐스트 결과를 그대로 쓰고 다시 레이캐스트하지 않는다", () => {
+  // 고치기 전에는 _pickFrontStepModel 로 가장 앞 교차를 구한 뒤 pickFace/pickEdge/pickVertex 가 같은 광선으로
+  // 그 모델을 다시 레이캐스트했다 (pointermove 마다 두 번)
+  const { mm, camera, corner } = boxWithHoveredCorner();
+  const at = toScreen(corner, camera);
+  const raycaster = new THREE.Raycaster();
+  const intersectObjects = raycaster.intersectObjects.bind(raycaster);
+  let casts = 0;
+  raycaster.intersectObjects = ((...args: Parameters<typeof intersectObjects>) => {
+    casts++;
+    return intersectObjects(...args);
+  }) as typeof raycaster.intersectObjects;
+
+  assert.ok(mm.pickStepFace(ndcOf(at), raycaster, camera));
+  assert.equal(casts, 1);
+  casts = 0;
+  assert.ok(mm.pickStepEdge(ndcOf(at), at, raycaster, camera, W, H));
+  assert.equal(casts, 1);
+  casts = 0;
+  assert.ok(mm.pickStepVertex(ndcOf(at), at, raycaster, camera, W, H));
+  assert.equal(casts, 1);
 });
