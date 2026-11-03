@@ -272,7 +272,9 @@ export const useSketchPointerHandler = (
             isDragging: false,
             startPos: { x: vec2.x, y: vec2.y },
             lastPos: { x: vec2.x, y: vec2.y },
-            ids: [...geoStore.selectedIds],
+            // 원점·축 같은 참조 기하는 선택에 남아 있어도 드래그 대상이 아니다. 여기서 빼야 이동뿐 아니라
+            // 단일 원 크기 조절 판정(ids.length === 1)·fixedKeys 같은 drag.ids 소비처가 모두 참조 기하를 세지 않는다.
+            ids: geoStore.selectedIds.filter((id) => !isReferenceId(id)),
             vertexHandle: null,
             shapeId: null,
             geoSnapshot: null, fullSnapshot: null,
