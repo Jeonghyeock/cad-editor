@@ -169,6 +169,10 @@ export class SolidOperationManager implements EntityPicker {
     const nativeResult = await this._tryNativeExtrude(operation, geometries);
     if (nativeResult) return;
 
+    // 폴백으로 만든 솔리드에는 native shape 가 없다. 이전 빌드의 handle 이 남아 있으면 후속 native
+    // Pocket 이 옛 형상(예: Draft 편집 전)을 자르므로 지운다.
+    operationShapeHandles.delete(operation.id);
+
     // Fallback: 기존 mesh-based CSG
     const toolMesh = this._createExtrudedMesh(operation, geometries);
     if (!toolMesh) return;
@@ -297,6 +301,11 @@ export class SolidOperationManager implements EntityPicker {
     operation: PadPocketOperation,
     geometries: Map<string, SerializedGeometry>,
   ): Promise<boolean> {
+    // native(BuildPrism / addPad) 는 2-Dim 의 반대 방향 깊이와 draft 를 받지 못한다. 그대로 보내면
+    // depth 만큼 곧은 기둥이 만들어지고 성공으로 끝나 프리뷰와 결과가 달라지므로, 이 옵션은 프리뷰와
+    // 같은 Three.js 폴백으로 만든다.
+    if (operation.direction === "two-dimensions" || (operation.draftAngle ?? 0) > 0) return false;
+
     // OcctFeatureTree 경로는 targetOperationId 가 있을 때만 시도. PartDocument 가 모든
     // feature 를 누적 fuse 하므로 independent pad (target 없음) 의 결과 mesh 가 직전 pad
     // 들까지 포함 → scene 에 양쪽 mesh 가 공존하면 시각 중첩으로 직전 mesh 가 가려짐.
@@ -495,6 +504,11 @@ export class SolidOperationManager implements EntityPicker {
     // 없어 항상 independent → 항상 BooleanNative 직접 호출 경로 사용.
     void this._tryFeatureTreeRevolve; // unused (intentional skip — accumulation 회피)
 
+    // native(BuildRevolution) 는 축 방향 기준 +angle 회전만 한다. reverse·two-angles·CW 를 보내면
+    // normal 과 같은 쪽으로 angle 만큼만 돌고 성공으로 끝나므로, 이 옵션은 프리뷰와 같은 폴백으로 만든다.
+    const dir = operation.revolveDirection ?? "normal";
+    if (dir === "reverse" || dir === "two-angles" || operation.clockwise) return false;
+
     try {
       const sketch = this._getSavedSketch(operation.sketchPlaneKey);
       if (!sketch) return false;
@@ -687,6 +701,10 @@ export class SolidOperationManager implements EntityPicker {
       toolBrush.updateMatrixWorld(true);
 
       const evaluator = new Evaluator();
+      // 기본값(position·uv·normal)은 두 메시 모두 uv 가 있어야 한다. native 로 만든 솔리드에는 uv 가
+      // 없어, native 대상에 폴백 연산(예: Draft Pocket)을 하면 CSG 가 실패했다. 재질에 텍스처가 없으므로
+      // uv 는 쓰지 않는다.
+      evaluator.attributes = ["position", "normal"];
       const result = evaluator.evaluate(sourceBrush, toolBrush, operation);
 
       // 중간 클론 geometry 해제
@@ -828,6 +846,9 @@ export class SolidOperationManager implements EntityPicker {
 
     // Native 경로 시도
     if (await this._tryNativeRevolve(operation, geometries)) return;
+
+    // 폴백 솔리드에는 native shape 가 없다 — 이전 빌드의 handle 을 지운다 (addExtrudedSolid 와 같은 이유).
+    operationShapeHandles.delete(operation.id);
 
     // Fallback: mesh-based
     const mesh = this._createRevolvedMesh(operation, geometries, false);
