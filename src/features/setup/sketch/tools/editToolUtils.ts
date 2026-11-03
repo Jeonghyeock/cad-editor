@@ -121,7 +121,7 @@ export function findCornerNearPoint(
 
 /**
  * 복제본을 만든 변환. 원본의 방향·크기 구속을 그대로 옮기면 솔버가 복제본을 원본 자세·크기로
- * 되돌리므로, cloneInternalConstraints 가 이 변환에 맞춰 구속을 바꾸거나 뺀다.
+ * 되돌리므로, cloneInternalConstraints 가 이 변환에 맞춰 구속을 바꾼다.
  */
 export type CloneTransform =
   | { kind: "translate" }
@@ -182,26 +182,30 @@ export function cloneInternalConstraints(
     geomId: idMap.get(ref.geomId)!,
   });
 
-  // 변환 뒤 방향 벡터 (평행이동·스케일은 방향을 바꾸지 않음)
-  const mapDirection = (x: number, y: number): { x: number; y: number } => {
+  // 변환의 방향 행렬: (x, y) → (m00·x + m01·y, m10·x + m11·y). 평행이동·스케일은 방향을 바꾸지 않음.
+  // cos/sin 은 구속마다가 아니라 여기서 한 번만 계산한다.
+  const [m00, m01, m10, m11] = ((): [number, number, number, number] => {
     if (transform.kind === "rotate") {
       const cos = Math.cos(transform.angle), sin = Math.sin(transform.angle);
-      return { x: x * cos - y * sin, y: x * sin + y * cos };
+      return [cos, -sin, sin, cos];
     }
     if (transform.kind === "mirror") {
       const cos = Math.cos(2 * transform.axisAngle), sin = Math.sin(2 * transform.axisAngle);
-      return { x: x * cos + y * sin, y: x * sin - y * cos };
+      return [cos, sin, sin, -cos];
     }
-    return { x, y };
-  };
+    return [1, 0, 0, 1];
+  })();
+  const mapDirection = (x: number, y: number) => ({ x: m00 * x + m01 * y, y: m10 * x + m11 * y });
 
-  // horizontal/vertical 은 변환 뒤에도 축과 나란할 때만 그 방향 구속으로 옮긴다 (90° 회전이면 H↔V).
-  // 비스듬해진 복제본에 그대로 걸면 솔버가 복제본을 축에 다시 세우며 찌그러뜨린다.
-  const mapAxisConstraintType = (x: number, y: number): "horizontal" | "vertical" | null => {
-    const d = mapDirection(x, y);
+  // horizontal/vertical 의 복제 대상: 변환 뒤에도 축과 나란하면 그 방향 구속 (90° 회전이면 H↔V), 아니면 null
+  const axisConstraintType = (d: { x: number; y: number }): "horizontal" | "vertical" | null => {
     if (Math.abs(d.y) < AXIS_ALIGN_EPSILON) return "horizontal";
     if (Math.abs(d.x) < AXIS_ALIGN_EPSILON) return "vertical";
     return null;
+  };
+  const clonedAxisType = {
+    horizontal: axisConstraintType(mapDirection(1, 0)),
+    vertical: axisConstraintType(mapDirection(0, 1)),
   };
 
   // 길이 치수는 스케일 배율만큼 바꾼다 (회전·대칭·평행이동은 길이를 지킴, 각도는 배율과 무관)
@@ -219,9 +223,17 @@ export function cloneInternalConstraints(
       case "horizontal":
       case "vertical":
         if (allRefsInternal([c.line.geomId])) {
-          const type = c.type === "horizontal" ? mapAxisConstraintType(1, 0) : mapAxisConstraintType(0, 1);
+          const type = clonedAxisType[c.type];
           if (type) {
             cloned = { type, id: generateCloneId(), line: mapGeomRef(c.line) };
+          } else {
+            // 비스듬해진 복제본에 H/V 를 그대로 걸면 솔버가 축에 다시 세우며 찌그러뜨리므로,
+            // 변환 뒤 지금 방향의 절대 각도(line_angle, 도)로 바꿔 원본과 같은 자유도를 지킨다
+            const line = store.geometries.get(c.line.geomId);
+            if (line?.type === "line") {
+              const d = mapDirection(line.x2 - line.x1, line.y2 - line.y1);
+              cloned = { type: "line_angle", id: generateCloneId(), line: mapGeomRef(c.line), value: (Math.atan2(d.y, d.x) * 180) / Math.PI };
+            }
           }
         }
         break;
