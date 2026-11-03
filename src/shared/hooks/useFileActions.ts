@@ -23,6 +23,11 @@ import {
   createFileData,
 } from "src/shared/utils/FileUtils";
 
+// 파일 열기를 한 줄로 세운다. 겹쳐 돌면(콜드 스타트에 여러 파일, 연속 더블클릭) 앞 열기가 내용을 채우기 전에
+// main 의 활성 fileId 가 다음 파일로 바뀌어, 앞 파일 탭이 빈 기본 문서로 남고 거기서 저장하면 실제 파일을
+// 빈 내용으로 덮어쓴다. 훅을 부르는 컴포넌트마다 콜백이 따로 생기므로 줄은 모듈에 하나 둔다.
+let openFileQueue: Promise<unknown> = Promise.resolve();
+
 export const useFileActions = () => {
   const navigate = useNavigate();
 
@@ -231,11 +236,9 @@ export const useFileActions = () => {
   ]);
 
   /**
-   * 파일을 엽니다.
-   * @param filePath 파일 경로 (생략 시 파일 선택 다이얼로그 표시)
-   * @returns 파일이 실제로 열렸으면 true, dialog 에서 cancel 또는 실패 시 false.
+   * 파일 하나를 바로 엽니다. 다른 열기와 겹치지 않도록 openFileAction 을 거쳐 부릅니다.
    */
-  const openFileAction = useCallback(
+  const openFileNow = useCallback(
     async (filePath?: string): Promise<boolean> => {
       const fileId = store.get(fileIdAtom);
       const isModified = store.get(isModifiedAtomFamily(fileId));
@@ -267,6 +270,21 @@ export const useFileActions = () => {
       updateFileId,
       updateOpenFileList,
     ],
+  );
+
+  /**
+   * 파일을 엽니다. 앞서 부른 열기가 끝난 뒤에 시작합니다(메뉴·second-instance·open-file 모두 여기로 온다).
+   * @param filePath 파일 경로 (생략 시 파일 선택 다이얼로그 표시)
+   * @returns 파일이 실제로 열렸으면 true, dialog 에서 cancel 또는 실패 시 false.
+   */
+  const openFileAction = useCallback(
+    (filePath?: string): Promise<boolean> => {
+      const opened = openFileQueue.then(() => openFileNow(filePath));
+      // 앞 열기가 실패해도 다음 열기는 한다
+      openFileQueue = opened.catch(() => undefined);
+      return opened;
+    },
+    [openFileNow],
   );
 
   /**
