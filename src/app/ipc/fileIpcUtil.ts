@@ -11,6 +11,22 @@ import type {
   CadFilePath,
 } from "src/shared/types/File.type";
 
+/**
+ * 두 경로가 같은 파일을 가리키는지 본다. 절대 경로로 정규화해 비교하고, Windows 는 대소문자를 가리지 않는다.
+ */
+export const isSameFilePath = (
+  a: string,
+  b: string,
+  platform: NodeJS.Platform = process.platform,
+) => {
+  const pathModule = platform === "win32" ? path.win32 : path.posix;
+  const normalize = (filePath: string) => {
+    const resolved = pathModule.resolve(filePath);
+    return platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return normalize(a) === normalize(b);
+};
+
 class FileIpcUtil {
   private static instance: FileIpcUtil;
 
@@ -163,15 +179,17 @@ class FileIpcUtil {
 
       if (result.canceled || !result.filePath) throw new Error("canceled");
 
-      // 파일 저장
+      // 파일 저장. 새 파일에는 새 fileId 를 기록한다 — 옛 fileId 를 그대로 쓰면 탭의 fileId 와 어긋나,
+      // 다시 열 때 같은 경로를 다른 파일로 보거나 원본과 fileId 가 겹친다.
+      const newFileId = randomUUID();
       await fs.promises.writeFile(
         result.filePath,
-        JSON.stringify(fileContent),
+        JSON.stringify({ ...fileContent, fileId: newFileId }),
         "utf-8",
       );
 
       const newFilePath: CadFilePath = {
-        fileId: randomUUID(),
+        fileId: newFileId,
         fileName: path.parse(result.filePath).name,
         path: result.filePath,
       };
@@ -220,16 +238,27 @@ class FileIpcUtil {
 
       const rawContent = await fs.promises.readFile(filePath, "utf-8");
       const fileContent: FileContent = JSON.parse(rawContent);
-      const fileId = fileContent.fileId;
 
-      // 이미 열려있는 파일인 경우
-      const openFilePath = this.getOpenFilePathById(fileId);
+      // 이미 열려있는 파일인 경우. 파일 안의 fileId 가 아니라 경로로 판정한다 — fileId 로 보면 탐색기 복사본이나
+      // fileId 가 없는 파일을 이미 열린 다른 파일로 오인해, 새 탭 없이 그 탭으로 바꾸기만 했다.
+      const openFilePath = this.openFilePathList.find(
+        (item) => item.path && isSameFilePath(item.path, filePath),
+      );
       if (openFilePath) {
         // fileId 업데이트
-        this.fileId = fileId;
+        this.fileId = openFilePath.fileId;
 
         return true;
       }
+
+      // 같은 fileId 로 두 탭이 열리면 renderer 가 fileId 별로 둔 데이터가 섞인다. 파일 안의 fileId 가 없거나
+      // 이미 열린 다른 파일과 겹치면(복사본, 이전 버전에서 Save As 한 파일) 새로 발급한다.
+      const fileId =
+        typeof fileContent.fileId === "string" &&
+        fileContent.fileId &&
+        !this.getOpenFilePathById(fileContent.fileId)
+          ? fileContent.fileId
+          : randomUUID();
 
       // 새로 여는 파일인 경우;
       const newFilePath: CadFilePath = {

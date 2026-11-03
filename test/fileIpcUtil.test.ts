@@ -12,7 +12,13 @@ const stub = (specifier: string, exports: object) => {
   const filename = require.resolve(specifier);
   require.cache[filename] = { id: filename, filename, loaded: true, exports } as NodeJS.Module;
 };
-stub("electron", { dialog: {} });
+// Save As 대화상자가 고른 경로는 테스트가 정한다
+let saveDialogPath = "";
+stub("electron", {
+  dialog: {
+    showSaveDialog: async () => ({ canceled: false, filePath: saveDialogPath }),
+  },
+});
 
 const tempDirs: string[] = [];
 afterEach(() => {
@@ -88,4 +94,92 @@ test("수정하지 않은 탭을 닫아도 그 사이 바깥에서 바뀐 파일
   assert.ok(await fileIpcUtil.closeFile(null, fileId, { fileId, unit: "MMGS" } as never, false));
 
   assert.equal(JSON.parse(fs.readFileSync(a, "utf-8")).unit, "MKS");
+});
+
+test("같은 fileId 를 가진 복사본은 원본과 다른 탭으로 연다", async () => {
+  // 고치기 전에는 파일 안의 fileId 로 '이미 열린 파일'을 판정해, 탐색기 복사본을 열면 원본 탭으로 바꾸기만 했다
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const part = path.join(dir, "part.cad");
+  const copy = path.join(dir, "part - 복사본.cad");
+  writeCad(part, { fileId: "part" });
+  fs.copyFileSync(part, copy);
+
+  assert.ok(await fileIpcUtil.openFile(true, part));
+  assert.ok(await fileIpcUtil.openFile(true, copy));
+
+  const list = fileIpcUtil.getOpenFileList();
+  assert.deepEqual(
+    list.map((file) => file.path),
+    [part, copy],
+  );
+  // 같은 fileId 로 두 탭이 열리면 renderer 가 fileId 별로 둔 데이터가 섞인다
+  assert.notEqual(list[0].fileId, list[1].fileId);
+  assert.equal(fileIpcUtil.getFileId(), list[1].fileId);
+});
+
+test("fileId 가 없는 파일끼리도 서로 다른 파일로 연다", async () => {
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const a = path.join(dir, "a.cad");
+  const b = path.join(dir, "b.cad");
+  writeCad(a, { unit: "MMGS" });
+  writeCad(b, { unit: "MKS" });
+
+  assert.ok(await fileIpcUtil.openFile(true, a));
+  assert.ok(await fileIpcUtil.openFile(true, b));
+
+  const list = fileIpcUtil.getOpenFileList();
+  assert.equal(list.length, 2);
+  assert.ok(list.every((file) => typeof file.fileId === "string" && file.fileId));
+  assert.notEqual(list[0].fileId, list[1].fileId);
+});
+
+test("이미 연 파일을 다른 표기의 경로로 다시 열면 그 탭으로 바꾸기만 한다", async () => {
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const a = path.join(dir, "a.cad");
+  const b = path.join(dir, "b.cad");
+  writeCad(a, { fileId: "a" });
+  writeCad(b, { fileId: "b" });
+
+  assert.ok(await fileIpcUtil.openFile(true, a));
+  const fileIdA = fileIpcUtil.getFileId();
+  assert.ok(await fileIpcUtil.openFile(true, b));
+  assert.ok(await fileIpcUtil.openFile(true, path.relative(process.cwd(), a)));
+
+  assert.equal(fileIpcUtil.getOpenFileList().length, 2);
+  assert.equal(fileIpcUtil.getFileId(), fileIdA);
+});
+
+test("Save As 한 파일에는 새 fileId 를 기록해, 다시 열면 그 탭으로 바꾸기만 한다", async () => {
+  // 고치기 전에는 새 경로에 옛 fileId 를 그대로 써서, 다시 열면 같은 경로가 두 탭에 열려 서로 덮어썼다
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const a = path.join(dir, "a.cad");
+  const b = path.join(dir, "b.cad");
+  writeCad(a, { fileId: "a" });
+
+  assert.ok(await fileIpcUtil.openFile(true, a));
+  saveDialogPath = b;
+  assert.ok(await fileIpcUtil.saveAsFile("a", { fileId: "a" } as never));
+  const fileIdB = fileIpcUtil.getFileId();
+  assert.notEqual(fileIdB, "a");
+  assert.equal(JSON.parse(fs.readFileSync(b, "utf-8")).fileId, fileIdB);
+
+  assert.ok(await fileIpcUtil.openFile(true, b));
+  const list = fileIpcUtil.getOpenFileList();
+  assert.deepEqual(
+    list.map((file) => file.path),
+    [b],
+  );
+  assert.equal(fileIpcUtil.getFileId(), fileIdB);
+});
+
+test("경로 비교: Windows 는 대소문자와 구분자를 가리지 않고, 그 밖에서는 대소문자를 가린다", async () => {
+  const { isSameFilePath } = await import("src/app/ipc/fileIpcUtil");
+  assert.ok(isSameFilePath(String.raw`C:\Work\Part.cad`, "c:/work/sub/../PART.CAD", "win32"));
+  assert.ok(!isSameFilePath(String.raw`C:\Work\Part.cad`, String.raw`C:\Work\Part2.cad`, "win32"));
+  assert.ok(isSameFilePath("/work/part.cad", "/work/./part.cad", "linux"));
+  assert.ok(!isSameFilePath("/work/Part.cad", "/work/part.cad", "linux"));
 });
