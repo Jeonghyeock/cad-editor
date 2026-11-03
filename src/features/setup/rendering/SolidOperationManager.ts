@@ -1,6 +1,7 @@
 ﻿// CSG/돌출(Pad/Pocket, Revolve) + 솔리드 관리
 
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Brush, Evaluator, ADDITION, SUBTRACTION } from "three-bvh-csg";
 
 import type { OcctFeatureTree } from "../core/OcctFeatureTree";
@@ -951,10 +952,6 @@ export class SolidOperationManager implements EntityPicker {
     );
     if (shapes.length === 0) return null;
 
-    // Shape에서 포인트 추출 (첫 번째 Shape 사용)
-    const shape = shapes[0];
-    const pts = shape.getPoints(48);
-
     // custom 축: 축 원점/방향으로 좌표 변환
     const isCustom = operation.axisType === "custom" && operation.axisOrigin && operation.axisDirection;
     let axisAngle = 0; // 축의 2D 회전각
@@ -964,37 +961,6 @@ export class SolidOperationManager implements EntityPicker {
       axisOy = operation.axisOrigin!.y;
       axisAngle = Math.atan2(operation.axisDirection!.y, operation.axisDirection!.x);
     }
-
-    // 회전축에 따라 포인트를 LatheGeometry용 (반지름 dist, 높이 height) 로 분해.
-    // dist 는 아래 basisX 방향 성분이다. (basisX, 축, 법선) 이 오른손 좌표계여야 φ 가 축 방향 기준
-    // 오른손 회전이 되어 native(OCCT MakeRevol) 와 같은 쪽으로 돈다.
-    const radial: { dist: number; height: number }[] = [];
-    for (const pt of pts) {
-      let dist: number, height: number;
-      if (isCustom) {
-        // custom 축: 축 원점 기준으로 이동 후 축 방향에 수직/평행 분해
-        const dx = pt.x - axisOx, dy = pt.y - axisOy;
-        const cosA = Math.cos(-axisAngle + Math.PI / 2), sinA = Math.sin(-axisAngle + Math.PI / 2);
-        dist = dx * cosA - dy * sinA;
-        height = dx * sinA + dy * cosA;
-      } else if (operation.axisType === "y") {
-        dist = pt.x; height = pt.y;
-      } else {
-        // X 축: 반지름 방향을 -v 로 둔다. v 로 두면 (v, u, n) 이 왼손 좌표계라 회전 방향이 뒤집힌다.
-        dist = -pt.y; height = pt.x;
-      }
-      radial.push({ dist, height });
-    }
-
-    // 프로파일이 축의 음수 쪽에 있으면 반지름 부호를 뒤집고, 시작 각을 반대쪽 반평면으로 옮긴다.
-    // 그대로 Math.max(0, dist) 를 하면 음수 쪽 프로파일은 모든 점이 축 위로 눌려 폭 0 솔리드가 된다.
-    let maxPositive = 0, maxNegative = 0;
-    for (const { dist } of radial) {
-      maxPositive = Math.max(maxPositive, dist);
-      maxNegative = Math.max(maxNegative, -dist);
-    }
-    const side = maxNegative > maxPositive ? -1 : 1;
-    const lathePoints = radial.map(({ dist, height }) => new THREE.Vector2(Math.max(0, dist * side), height));
 
     // 방향별 phiStart/phiLength 계산 (프로파일 반평면 기준 각도)
     const dir = operation.revolveDirection ?? "normal";
@@ -1015,12 +981,51 @@ export class SolidOperationManager implements EntityPicker {
     if (operation.clockwise) {
       phiStart = -(phiStart + phiLength);
     }
-    // LatheGeometry 는 점을 (r·sinφ, h, r·cosφ) 로 놓아 φ=0 이 법선(+Z) 쪽이다. 스케치 평면의 +basisX
-    // 반평면은 φ=π/2, -basisX 반평면은 φ=-π/2 이므로 프로파일이 있는 쪽 반평면을 0° 로 맞춘다.
-    phiStart += (side * Math.PI) / 2;
-
     const segments = Math.max(12, Math.ceil((phiLength / (Math.PI * 2)) * 48));
-    const geometry = new THREE.LatheGeometry(lathePoints, segments, phiStart, phiLength);
+
+    // 프로파일마다 LatheGeometry 를 만들어 한 geometry 로 합친다 — 폴백 Pad 가 모든 Shape 를 한
+    // ExtrudeGeometry 에 넣는 것과 같다(부울 합집합은 하지 않는다). 첫 프로파일만 돌리면 여러 프로파일
+    // Revolve 가 첫 프로파일만 남는다.
+    const lathes = shapes.map((shape) => {
+      // 회전축에 따라 포인트를 LatheGeometry용 (반지름 dist, 높이 height) 로 분해.
+      // dist 는 아래 basisX 방향 성분이다. (basisX, 축, 법선) 이 오른손 좌표계여야 φ 가 축 방향 기준
+      // 오른손 회전이 되어 native(OCCT MakeRevol) 와 같은 쪽으로 돈다.
+      const radial: { dist: number; height: number }[] = [];
+      for (const pt of shape.getPoints(48)) {
+        let dist: number, height: number;
+        if (isCustom) {
+          // custom 축: 축 원점 기준으로 이동 후 축 방향에 수직/평행 분해
+          const dx = pt.x - axisOx, dy = pt.y - axisOy;
+          const cosA = Math.cos(-axisAngle + Math.PI / 2), sinA = Math.sin(-axisAngle + Math.PI / 2);
+          dist = dx * cosA - dy * sinA;
+          height = dx * sinA + dy * cosA;
+        } else if (operation.axisType === "y") {
+          dist = pt.x; height = pt.y;
+        } else {
+          // X 축: 반지름 방향을 -v 로 둔다. v 로 두면 (v, u, n) 이 왼손 좌표계라 회전 방향이 뒤집힌다.
+          dist = -pt.y; height = pt.x;
+        }
+        radial.push({ dist, height });
+      }
+
+      // 프로파일이 축의 음수 쪽에 있으면 반지름 부호를 뒤집고, 시작 각을 반대쪽 반평면으로 옮긴다.
+      // 그대로 Math.max(0, dist) 를 하면 음수 쪽 프로파일은 모든 점이 축 위로 눌려 폭 0 솔리드가 된다.
+      // 프로파일마다 축의 어느 쪽에 있는지 따로 본다.
+      let maxPositive = 0, maxNegative = 0;
+      for (const { dist } of radial) {
+        maxPositive = Math.max(maxPositive, dist);
+        maxNegative = Math.max(maxNegative, -dist);
+      }
+      const side = maxNegative > maxPositive ? -1 : 1;
+      const lathePoints = radial.map(({ dist, height }) => new THREE.Vector2(Math.max(0, dist * side), height));
+
+      // LatheGeometry 는 점을 (r·sinφ, h, r·cosφ) 로 놓아 φ=0 이 법선(+Z) 쪽이다. 스케치 평면의 +basisX
+      // 반평면은 φ=π/2, -basisX 반평면은 φ=-π/2 이므로 프로파일이 있는 쪽 반평면을 0° 로 맞춘다.
+      return new THREE.LatheGeometry(lathePoints, segments, phiStart + (side * Math.PI) / 2, phiLength);
+    });
+    const geometry = lathes.length === 1 ? lathes[0] : mergeGeometries(lathes);
+    if (lathes.length > 1) for (const lathe of lathes) lathe.dispose();
+    if (!geometry) return null;
 
     // 스케치 평면 → 월드 변환
     const plane = sketch.plane;
