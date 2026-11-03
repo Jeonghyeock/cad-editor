@@ -77,3 +77,16 @@ test("이력 관리자가 없을 때도 applyConstraint·execute 는 tryExecute 
   assert.equal(store.constraintStore?.constraints.has("len20"), true);
   assert.notEqual(store.solveStatus, "over-constrained");
 });
+
+test("빈 커맨드는 이력이 있든 없든 실행도 기록도 하지 않는다", async () => {
+  // 리뷰 반영(2차) — isEmpty 검사를 SketchGeometryStore 한 곳으로 모은 뒤에도 같게 동작하는지 지킨다
+  const { BatchCommand } = await import("src/features/setup/sketch/commands/BatchCommand");
+  const { store, history } = await createSketch();
+  store.execute(new BatchCommand([]));
+  assert.equal(history.canUndo, false);
+  assert.equal(store.tryExecute(new BatchCommand([])), true);
+  assert.equal(history.canUndo, false);
+
+  store.globalHistory = null;
+  assert.equal(store.tryExecute(new BatchCommand([])), true);
+});

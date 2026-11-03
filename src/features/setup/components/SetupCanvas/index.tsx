@@ -450,8 +450,9 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
         currentPlaneRef.current = plane;
 
         const s = sceneRef.current;
-        // 키가 비면 히스토리가 이 스케치의 명령을 기록하지 못한다 — scene 이 없어도 평면에서 같은 형식의 키를 만든다.
-        const planeKey = s?.getPlaneKey(plane) ?? planeKeyFromSketchPlane(plane);
+        // 키가 비면 히스토리가 이 스케치의 명령을 기록하지 못한다 — scene 이 없어도 평면에서 키를 만든다
+        // (scene.getPlaneKey(plane) 과 같은 형식).
+        const planeKey = planeKeyFromSketchPlane(plane);
 
         // 기존 저장된 스케치가 있으면 이름 유지 + 엔진 복원
         const saved = s?.getSavedSketch(plane);
@@ -518,7 +519,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       currentPlaneRef.current = sketchPlane;
 
       // 저장된 스케치가 있으면 기존 이름 유지, 없으면 Sketch N
-      const planeKey = s.getPlaneKey(sketchPlane) ?? planeKeyFromSketchPlane(sketchPlane);
+      const planeKey = planeKeyFromSketchPlane(sketchPlane);
       const existingEntry = sketchEntries.find((e) => e.planeKey === planeKey);
       if (existingEntry) {
         currentPlaneNameRef.current = existingEntry.planeName;
@@ -1091,7 +1092,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
           // viewState 도 atom 에 재기록 — 다른 entry 경로 (handleEnterSketchByKey / Origin /
           // Reference) 와 대칭. atom 이미 같은 값이라면 no-op (Jotai 가 Object.is 비교).
           // 건너뛰면 히스토리가 열린 스케치를 모른다 — 키를 늘 만들어 진입을 알린다.
-          const restoredKey = scene.getPlaneKey(plane) ?? planeKeyFromSketchPlane(plane);
+          const restoredKey = planeKeyFromSketchPlane(plane);
           enterSketchMode({ planeKey: restoredKey, planeName, faceSource });
         }
       } else if (planeKey && enterSketchByKeyRef?.current) {
