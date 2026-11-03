@@ -136,11 +136,11 @@ test("호와 원 사이 거리 치수를 건 뒤 호 반지름을 바꿔도 거�
   near(Math.hypot(k.cx - r.cx, k.cy - r.cy) - r.r - k.r, 15);
 });
 
-// 중심 C 에서 A·B 가 같은 거리(10)
-const equidistantSketch = (): [SerializedGeometry[], SketchConstraint[]] => [
+// 중심 C 에서 A·B 가 같은 거리(기본 10)
+const equidistantSketch = (a = { x: 10, y: 0 }, b = { x: 0, y: 10 }): [SerializedGeometry[], SketchConstraint[]] => [
   [
-    { type: "point", id: "A", x: 10, y: 0 },
-    { type: "point", id: "B", x: 0, y: 10 },
+    { type: "point", id: "A", ...a },
+    { type: "point", id: "B", ...b },
     { type: "point", id: "C", x: 0, y: 0 },
   ],
   [
@@ -166,4 +166,27 @@ test("equidistant 는 자유도를 하나만 쓰고, 모순 없는 거리 치수
   assert.ok(a?.type === "point" && b?.type === "point" && c?.type === "point");
   near(Math.hypot(a.x - c.x, a.y - c.y), 12);
   near(Math.hypot(b.x - c.x, b.y - c.y), 12);
+});
+
+test("equidistant 의 중심이 A 나 B 와 같은 점이면 예전처럼 건너뛰어, 다른 점을 중심으로 끌어오지 않는다", async () => {
+  // 고치기 전(이 PR 의 앞 커밋)에는 중심이 A 와 같아도 수직이등분선 구속을 넣어 |CB| = |CA| = 0 이 되도록
+  // B 를 중심으로 끌어왔다. 예전 매핑은 |AC| ≤ 1e-6 이면 구속을 넣지 않았다.
+  const cases: [label: string, a: { x: number; y: number }, b: { x: number; y: number }, coincident?: "A" | "B"][] = [
+    ["A 와 같은 위치", { x: 0, y: 0 }, { x: 10, y: 0 }],
+    ["A 와 coincident", { x: 0, y: 0 }, { x: 10, y: 0 }, "A"],
+    ["B 와 같은 위치", { x: 10, y: 0 }, { x: 0, y: 0 }],
+  ];
+  for (const [label, a, b, coincident] of cases) {
+    const [geoms, constraints] = equidistantSketch(a, b);
+    if (coincident) {
+      constraints.push({
+        type: "coincident", id: "co", pointA: { geomId: coincident, vertexIndex: 0 }, pointB: { geomId: "C", vertexIndex: 0 },
+      });
+    }
+    const { status, geoms: solved } = await solve(geoms, constraints);
+    assert.notEqual(status, "over-constrained", label);
+    const [sa, sb] = ["A", "B"].map((id) => solved.get(id));
+    assert.ok(sa?.type === "point" && sb?.type === "point");
+    assert.deepEqual([sa.x, sa.y, sb.x, sb.y].map((v) => +v.toFixed(6)), [a.x, a.y, b.x, b.y], label);
+  }
 });

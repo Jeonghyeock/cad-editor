@@ -1083,10 +1083,18 @@ export class SketchConstraintSolver {
           const paId = pointRegistry.get(find(paKey));
           const pbId = pointRegistry.get(find(pbKey));
           const pcId = pointRegistry.get(find(pcKey));
+          if (!paId || !pbId || !pcId) break;
           // A·B 가 같은 점이면 항상 성립 — 수직이등분선이 정의되지 않으므로 추가하지 않음.
-          if (paId && pbId && pcId && paId !== pbId) {
-            primitives.push({ id: cid, type: "point_on_perp_bisector_ppp", p_id: pcId, lp1_id: paId, lp2_id: pbId });
-          }
+          if (paId === pbId) break;
+          // center 가 A 또는 B 와 같은 점 (같은 cluster 또는 같은 위치) 이면 거리 0 이 되도록 다른 점을
+          // center 로 끌어오게 되므로, 예전 매핑 (|AC| ≤ 1e-6 이면 생략) 처럼 추가하지 않음.
+          const cCoord = pointCoords.get(pcId);
+          const atCenter = (pid: string) => {
+            const p = pointCoords.get(pid);
+            return pid === pcId || (!!p && !!cCoord && Math.hypot(p.x - cCoord.x, p.y - cCoord.y) <= 1e-6);
+          };
+          if (atCenter(paId) || atCenter(pbId)) break;
+          primitives.push({ id: cid, type: "point_on_perp_bisector_ppp", p_id: pcId, lp1_id: paId, lp2_id: pbId });
           break;
         }
         case "fix_together": {
