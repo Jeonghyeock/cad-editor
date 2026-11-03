@@ -272,9 +272,10 @@ export const useFileActions = () => {
   /**
    * 파일을 닫습니다.
    * @param fileId 파일 ID
+   * @returns 닫았으면 true. 확인창의 Cancel, 저장 대화상자 취소, 저장 실패면 false.
    */
   const closeFileAction = useCallback(
-    async (fileId: string) => {
+    async (fileId: string): Promise<boolean> => {
       const { globalData } = store.get(fileDataAtomFamily(fileId));
 
       const preview = generatePreview();
@@ -294,13 +295,14 @@ export const useFileActions = () => {
       );
 
       // 취소
-      if (!res) return;
+      if (!res) return false;
 
       await updateOpenFileList();
       // updateRecentFileList() 제거 — dead atom + 무거운 IPC.
       await updateFileId();
 
       setCurrentFileFromFileData();
+      return true;
     },
     [
       store,
@@ -316,6 +318,9 @@ export const useFileActions = () => {
    * 창을 닫습니다.
    */
   const closeWindowAction = useCallback(async () => {
+    // 미저장 파일을 하나라도 닫지 못하면(확인창의 Cancel, 저장 대화상자 취소, 저장 실패) 창을 닫지 않는다.
+    // 예외가 나면 이전처럼 창을 닫는다 — 닫기가 영영 막히지 않게.
+    let canceled = false;
     try {
       const openFileList = store.get(openFileListAtom);
       // 모든 열린 파일에 대해 미저장 변경 시 closeFileAction (저장 확인 dialog).
@@ -325,10 +330,13 @@ export const useFileActions = () => {
         const isModified = store.get(isModifiedAtomFamily(file.fileId));
         if (!isModified) continue;
 
-        await closeFileAction(file.fileId);
+        if (!(await closeFileAction(file.fileId))) {
+          canceled = true;
+          break;
+        }
       }
     } finally {
-      electron.ipcRenderer.invoke(MenuChannels.WINDOW_CLOSE);
+      if (!canceled) electron.ipcRenderer.invoke(MenuChannels.WINDOW_CLOSE);
     }
   }, [store, closeFileAction]);
 
