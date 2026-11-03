@@ -86,6 +86,11 @@ export class SolidOperationManager implements EntityPicker {
 
   // 돌출 솔리드 (Pad/Pocket 결과)
   private _extrudedSolids: Map<string, THREE.Mesh | THREE.Group> = new Map();
+  // 후속 Pad/Pocket 의 부울 연산에 소비된 원본 솔리드 — 결과 op id → 원본 op id.
+  // 결과 메시가 원본 형상을 담고 있으므로 원본은 계속 숨겨야 한다. 가시성 일괄 복원(스케치 종료,
+  // operations 동기화)이 원본을 다시 보이면 불투명한 원본이 Pocket 구멍을 덮는다.
+  // 결과 솔리드가 지워지면(삭제·undo·재빌드) removeExtrudedSolid 에서 기록도 지운다.
+  private _consumedSources: Map<string, string> = new Map();
   // 돌출 프리뷰 (생성 중 라이브 표시)
   private _extrudePreview: THREE.Mesh | null = null;
   // 3D viewport hover / select 시 emissive overlay (atom SSOT — input/index.tsx 의 useEffect
@@ -184,6 +189,7 @@ export class SolidOperationManager implements EntityPicker {
         const resultMesh = this._performCSGOperation(sourceMesh, toolMesh, csgOp);
         if (resultMesh) {
           sourceMesh.visible = false;
+          this._consumedSources.set(operation.id, operation.targetOperationId);
           toolMesh.geometry.dispose();
           if (toolMesh.material instanceof THREE.Material) toolMesh.material.dispose();
           resultMesh.name = `extruded-${operation.id}`;
@@ -282,6 +288,7 @@ export class SolidOperationManager implements EntityPicker {
       if (operation.targetOperationId) {
         const sourceMesh = this._extrudedSolids.get(operation.targetOperationId);
         if (sourceMesh) sourceMesh.visible = false;
+        this._consumedSources.set(operation.id, operation.targetOperationId);
         mesh.userData.sourceOperationId = operation.targetOperationId;
       }
 
@@ -386,6 +393,7 @@ export class SolidOperationManager implements EntityPicker {
           finalResult = boolResult;
           const sourceMesh = this._extrudedSolids.get(operation.targetOperationId);
           if (sourceMesh) sourceMesh.visible = false;
+          this._consumedSources.set(operation.id, operation.targetOperationId);
         } else if (operation.type === "pocket") {
           return false;
         }
@@ -583,6 +591,7 @@ export class SolidOperationManager implements EntityPicker {
   }
 
   removeExtrudedSolid(operationId: string): void {
+    this._consumedSources.delete(operationId);
     const existing = this._extrudedSolids.get(operationId);
     if (existing) {
       this._scene.remove(existing);
@@ -1029,24 +1038,33 @@ export class SolidOperationManager implements EntityPicker {
   // --- (Sweep/Fillet/Chamfer/Shell/Pattern 제거됨 — UI 진입 경로 부재) ---
   // 필요 시 git history 의 이전 커밋 (PadPocket/Revolve 만 남기기 전) 참조.
 
-  /** sketch 진입 시 모든 솔리드 가시성 일괄 토글. */
+  // 후속 부울 연산의 결과가 이 솔리드를 담고 있는지 (그렇다면 보이게 하면 안 된다)
+  private _isConsumed(operationId: string): boolean {
+    for (const sourceId of this._consumedSources.values()) {
+      if (sourceId === operationId) return true;
+    }
+    return false;
+  }
+
+  /** sketch 진입 시 모든 솔리드 가시성 일괄 토글. 후속 연산에 소비된 원본은 숨긴 채로 둔다. */
   setExtrudedSolidsVisible(visible: boolean): void {
-    for (const obj of this._extrudedSolids.values()) {
-      obj.visible = visible;
+    for (const [id, obj] of this._extrudedSolids) {
+      obj.visible = visible && !this._isConsumed(id);
     }
     this._notifyChange();
   }
 
-  /** 개별 솔리드 가시성 토글. */
+  /** 개별 솔리드 가시성 토글. 후속 연산에 소비된 원본은 숨긴 채로 둔다. */
   setExtrudedSolidVisible(operationId: string, visible: boolean): void {
     const obj = this._extrudedSolids.get(operationId);
-    if (obj) { obj.visible = visible; this._notifyChange(); }
+    if (obj) { obj.visible = visible && !this._isConsumed(operationId); this._notifyChange(); }
   }
 
-  // Edit 시 source solid 다시 표시 (CreatePad/EditPadCommand 에서 사용)
+  // Edit 시 source solid 다시 표시 (CreatePad/EditPadCommand 에서 사용).
+  // 결과 솔리드를 먼저 지운 뒤 부른다 — 아직 다른 결과에 소비 중이면 숨긴 채로 둔다.
   restoreSourceVisibility(operationId: string): void {
     const mesh = this._extrudedSolids.get(operationId);
-    if (mesh) { mesh.visible = true; this._notifyChange(); }
+    if (mesh) { mesh.visible = !this._isConsumed(operationId); this._notifyChange(); }
   }
 
 
@@ -1097,6 +1115,9 @@ export class SolidOperationManager implements EntityPicker {
             ? { ...op, profileIds: remappedProfileIds }
             : op;
           if (remappedOp.targetOperationId) {
+            // 이전 결과 솔리드를 먼저 지워야 원본이 '소비 중' 에서 풀려 다시 보인다
+            // (addExtrudedSolid 도 처음에 지우지만 그때는 이미 늦다).
+            this.removeExtrudedSolid(remappedOp.id);
             this.restoreSourceVisibility(remappedOp.targetOperationId);
           }
           this.addExtrudedSolid(remappedOp, geoMap);
@@ -1124,6 +1145,7 @@ export class SolidOperationManager implements EntityPicker {
       disposeObject3D(mesh);
     }
     this._extrudedSolids.clear();
+    this._consumedSources.clear();
     this.clearExtrudePreview();
     operationShapeHandles.clear();
     this._notifyChange();
