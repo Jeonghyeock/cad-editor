@@ -34,16 +34,21 @@ let closeFileResult = true;
   },
 };
 
-async function setup() {
+async function setup(fileIds = ["a"]) {
   const { fileDataAtomFamily, openFileListAtom } = await import("src/shared/stores/File.store");
   const { createFileData } = await import("src/shared/utils/FileUtils");
   const { useFileActions } = await import("src/shared/hooks/useFileActions");
 
-  // 수정된(저장하지 않은) 파일 하나가 열려 있다
-  const data = createFileData("a", { fileId: "a", unit: "MMGS", lastURL: null, setup: {} });
-  data.globalData = { ...data.globalData, unit: "MKS" };
-  store.set(fileDataAtomFamily("a"), data);
-  store.set(openFileListAtom, [{ fileId: "a", fileName: "a", path: "a.cad" }] as never);
+  // 수정된(저장하지 않은) 파일들이 열려 있다
+  for (const fileId of fileIds) {
+    const data = createFileData(fileId, { fileId, unit: "MMGS", lastURL: null, setup: {} });
+    data.globalData = { ...data.globalData, unit: "MKS" };
+    store.set(fileDataAtomFamily(fileId), data);
+  }
+  store.set(
+    openFileListAtom,
+    fileIds.map((fileId) => ({ fileId, fileName: fileId, path: `${fileId}.cad` })) as never,
+  );
   invoked.length = 0;
   // eslint-disable-next-line react-hooks/rules-of-hooks -- React 없이 훅이 만든 콜백만 부른다
   return useFileActions();
@@ -55,6 +60,14 @@ test("닫기 확인창에서 Cancel 하면 창을 닫지 않는다", async () =>
   closeFileResult = false;
   await actions.closeWindowAction();
   assert.ok(invoked.includes(FileChannels.CLOSE_FILE));
+  assert.ok(!invoked.includes(MenuChannels.WINDOW_CLOSE));
+});
+
+test("미저장 파일 둘 중 먼저 묻는 쪽에서 Cancel 하면 나머지는 묻지 않고 창도 닫지 않는다", async () => {
+  const actions = await setup(["a", "b"]);
+  closeFileResult = false;
+  await actions.closeWindowAction();
+  assert.equal(invoked.filter((channel) => channel === FileChannels.CLOSE_FILE).length, 1);
   assert.ok(!invoked.includes(MenuChannels.WINDOW_CLOSE));
 });
 
