@@ -202,7 +202,7 @@ export class ConnectDrawTool extends DrawTool {
     p2: { x: number; y: number },
     t1: { x: number; y: number },
     t2: { x: number; y: number },
-  ): { cx: number; cy: number; r: number; startAngle: number; endAngle: number } | null {
+  ): { cx: number; cy: number; r: number; startAngle: number; endAngle: number; reversed: boolean } | null {
     // 접선에 수직인 법선 (원 중심 방향)
     const n1 = { x: -t1.y, y: t1.x };
     const n2 = { x: -t2.y, y: t2.x };
@@ -225,7 +225,13 @@ export class ConnectDrawTool extends DrawTool {
     const startAngle = Math.atan2(p1.y - cy, p1.x - cx);
     const endAngle = Math.atan2(p2.y - cy, p2.x - cx);
 
-    return { cx, cy, r, startAngle, endAngle };
+    // 호는 startAngle 에서 CCW 로 endAngle 까지 그려진다. p1 의 접선 방향에서 p2 가 오른쪽(cross < 0)이면 시계 방향으로
+    // 도는 호라 start/end 를 바꿔 둔다(reversed) — 그대로 두면 반대로 도는 270° 호가 된다. 이때 p1 은 호의 vertex 2,
+    // p2 는 vertex 1 에 놓인다.
+    if (t1.x * dy - t1.y * dx < 0) {
+      return { cx, cy, r, startAngle: endAngle, endAngle: startAngle, reversed: true };
+    }
+    return { cx, cy, r, startAngle, endAngle, reversed: false };
   }
 
   private _finalize(
@@ -283,8 +289,9 @@ export class ConnectDrawTool extends DrawTool {
           endAngle: arcData.endAngle,
         }));
         resultKind = "arc";
-        startVi = 1;
-        endVi = 2;
+        // 시계 방향 호는 start/end 를 바꿔 두었으므로 시작 끝점이 vertex 2, 끝 끝점이 vertex 1 이다
+        startVi = arcData.reversed ? 2 : 1;
+        endVi = arcData.reversed ? 1 : 2;
       } else {
         geomId = this._generateId();
         cmds.push(this._addGeometry({

@@ -499,14 +499,18 @@ export class ProfileDrawTool extends DrawTool {
     const cmds: GeometryCommand[] = [
       this._addGeometry({ ...arcGeom, id, type: "arc" }),
     ];
+    // 체인 현재점에 놓인 호 끝점(joinVi)과 새 체인 끝점(endVi). 시계 방향으로 도는 호는 start/end 를 바꿔 두므로
+    // (_computeTangentArc·_computeThreePointArc) 체인은 vertex 2 에서 들어와 vertex 1 로 나간다.
+    const joinVi = this._currentPos ? this._arcEndVertexAt(arcGeom, this._currentPos) : 1;
+    const endVi = joinVi === 1 ? 2 : 1;
 
     if (this._lastGeomId) {
-      // coincident: 이전 세그먼트 끝점 ≡ 호 시작점 (vertex 1)
+      // coincident: 이전 세그먼트 끝점 ≡ 체인 현재점에 놓인 호 끝점
       cmds.push(new AddConstraintCommand({
         type: "coincident",
         id: generateConstraintId("auto-prf"),
         pointA: { geomId: this._lastGeomId, vertexIndex: this._lastVertexIndex },
-        pointB: { geomId: id, vertexIndex: 1 },
+        pointB: { geomId: id, vertexIndex: joinVi },
       }));
       // tangent: 이전 기하 ↔ 호 (접선 연속성, tangent-arc 모드에서만)
       if (addTangent) {
@@ -519,20 +523,30 @@ export class ProfileDrawTool extends DrawTool {
       }
     }
 
-    // 닫기 세그먼트: 호 끝점 (vertex 2) ↔ 첫 세그먼트 시작점 coincident
+    // 닫기 세그먼트: 체인 끝에 놓인 호 끝점 ↔ 첫 세그먼트 시작점 coincident
     if (closingTo && closingTo.geomId !== id) {
       cmds.push(new AddConstraintCommand({
         type: "coincident",
         id: generateConstraintId("auto-prf-close"),
-        pointA: { geomId: id, vertexIndex: 2 },
+        pointA: { geomId: id, vertexIndex: endVi },
         pointB: { geomId: closingTo.geomId, vertexIndex: closingTo.vertexIndex },
       }));
     }
 
     store.execute(new BatchCommand(cmds));
     this._lastGeomId = id;
-    this._lastVertexIndex = 2; // arc 끝점
+    this._lastVertexIndex = endVi; // 체인 끝에 놓인 호 끝점
     this._chainLineIds.push(id);
+  }
+
+  // 호의 두 끝점(vertex 1 = startAngle, vertex 2 = endAngle) 중 p 에 놓인 쪽
+  private _arcEndVertexAt(
+    arc: { cx: number; cy: number; r: number; startAngle: number; endAngle: number },
+    p: { x: number; y: number },
+  ): 1 | 2 {
+    const d1 = Math.hypot(arc.cx + arc.r * Math.cos(arc.startAngle) - p.x, arc.cy + arc.r * Math.sin(arc.startAngle) - p.y);
+    const d2 = Math.hypot(arc.cx + arc.r * Math.cos(arc.endAngle) - p.x, arc.cy + arc.r * Math.sin(arc.endAngle) - p.y);
+    return d1 <= d2 ? 1 : 2;
   }
 
   // --- 탄젠트 호 계산 (시작점 + 접선 방향 + 끝점) ---
@@ -573,6 +587,12 @@ export class ProfileDrawTool extends DrawTool {
     const startAngle = Math.atan2(start.y - cy, start.x - cx);
     const endAngle = Math.atan2(end.y - cy, end.x - cx);
 
+    // 호는 startAngle 에서 CCW 로 endAngle 까지 그려진다. 접선 방향에서 끝점이 오른쪽(cross < 0)이면 시계 방향으로
+    // 도는 호라, start/end 를 바꿔 둔다 — 그대로 두면 반대로 도는 270° 호가 된다. 이때 체인의 시작점은 호의 vertex 2 에
+    // 놓인다(_createArcSegment 가 좌표로 판별).
+    if (tangentDir.dx * chordY - tangentDir.dy * chordX < 0) {
+      return { type: "arc", cx, cy, r, startAngle: endAngle, endAngle: startAngle };
+    }
     return { type: "arc", cx, cy, r, startAngle, endAngle };
   }
 
@@ -629,14 +649,17 @@ export class ProfileDrawTool extends DrawTool {
   // --- 호 끝점에서의 접선 방향 업데이트 ---
 
   private _updateLastDirectionFromArc(
-    arc: { cx: number; cy: number },
+    arc: { cx: number; cy: number; r: number; startAngle: number; endAngle: number },
     endPos: { x: number; y: number },
   ): void {
     const rx = endPos.x - arc.cx;
     const ry = endPos.y - arc.cy;
     const rLen = Math.hypot(rx, ry);
     if (rLen > 1e-6) {
-      this._lastDirection = { dx: -ry / rLen, dy: rx / rLen };
+      // 체인이 호를 vertex 1→2(CCW)로 지나왔으면 끝 방향은 반지름을 +90° 돌린 쪽이다. start/end 를 바꿔 둔
+      // 시계 방향 호는 체인 끝이 vertex 1 이라 그 반대 방향이다.
+      const sign = this._arcEndVertexAt(arc, endPos) === 2 ? 1 : -1;
+      this._lastDirection = { dx: (-ry / rLen) * sign, dy: (rx / rLen) * sign };
     }
   }
 
