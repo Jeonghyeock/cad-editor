@@ -129,11 +129,7 @@ export class GlobalHistoryManager {
     this._sketchGenerations.set(planeKey, Math.max(0, (this._sketchGenerations.get(planeKey) ?? 0) - 1));
   }
 
-  // --- 기하 커맨드 직접 실행 (execute 호출 포함) ---
-
-  executeGeometryCommand(command: GeometryCommand, store: SketchGeometryStore): void {
-    this.tryExecuteGeometryCommand(command, store, () => true);
-  }
+  // --- 기하 커맨드 직접 실행 (execute 호출 포함 — SketchGeometryStore.execute/tryExecute 가 부른다) ---
 
   /**
    * 명령을 실행·솔브해 본 뒤 accept 가 받아들일 때만 히스토리에 넣는다. 거부하면 명령을 되돌리고 좌표도 실행

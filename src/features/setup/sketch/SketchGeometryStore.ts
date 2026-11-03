@@ -204,15 +204,32 @@ export class SketchGeometryStore {
   }
 
   // --- 커맨드 실행 (GlobalHistoryManager에 위임) ---
+  // 히스토리가 아직 연결되지 않았으면(SetupCanvas effect 전후) 기록 없이 실행만 한다. 진입점(execute·applyConstraint·
+  // tryExecute·pushSnapshot)마다 다르게 굴지 않도록 한 경로(_run)로 모은다 — tryExecute 만 실행되고 나머지는 아무것도
+  // 하지 않으면, 상충 치수에서 '참조 치수로' 를 골라도 구속이 들어가지 않았다.
 
   // 커맨드를 실행하고 글로벌 히스토리에 기록
   execute(command: GeometryCommand): void {
-    this.globalHistory?.executeGeometryCommand(command, this);
+    this._run(command, () => true);
   }
 
   // 히스토리에만 push (execute 호출 안 함 — 드래그 완료 시 현재 상태가 이미 최종)
   pushSnapshot(command: GeometryCommand): void {
-    this.globalHistory?.pushGeometrySnapshot(command, this);
+    if (this.globalHistory) {
+      this.globalHistory.pushGeometrySnapshot(command, this);
+      return;
+    }
+    // 기록 없이 — 결과는 이미 store 에 있으므로 pushGeometrySnapshot 처럼 면·렌더만 맞춘다
+    this.recomputeFaces();
+    this.markGeometryChanged();
+    this.requestRender();
+  }
+
+  // 실행·솔브하고 accept 로 받아들일지 정한다 — 히스토리가 있으면 받아들인 것만 기록, 없으면 기록 없이.
+  private _run(command: GeometryCommand, accept: (store: SketchGeometryStore) => boolean): boolean {
+    if (this.globalHistory) return this.globalHistory.tryExecuteGeometryCommand(command, this, accept);
+    if (command.isEmpty?.()) return true;
+    return applyGeometryCommand(command, this, accept) !== null;
   }
 
   // --- Construction 토글 ---
@@ -284,15 +301,11 @@ export class SketchGeometryStore {
   }
 
   // 커맨드를 실행해 보고 over-constrained/error 가 아닐 때만 글로벌 히스토리에 기록. 상충하면 되돌리고 false.
-  // 히스토리가 아직 연결되지 않았으면 기록 없이 실행만 한다 — 받아들임은 똑같이 솔브 결과로 정한다.
   tryExecute(command: GeometryCommand): boolean {
-    const accept = (store: SketchGeometryStore) =>
-      store.solveStatus !== "over-constrained" && store.solveStatus !== "error";
-    if (this.globalHistory) {
-      return this.globalHistory.tryExecuteGeometryCommand(command, this, accept);
-    }
-    if (command.isEmpty?.()) return true;
-    return applyGeometryCommand(command, this, accept) !== null;
+    return this._run(
+      command,
+      (store) => store.solveStatus !== "over-constrained" && store.solveStatus !== "error",
+    );
   }
 
   removeConstraintById(id: string): void {
