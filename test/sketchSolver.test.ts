@@ -31,25 +31,35 @@ const lineDeg = (g: SerializedGeometry | undefined) => {
 };
 
 // 원점에서 만나는 두 선 A(수평)·B 와 두 선 사이 각도 치수
-const angleSketch = (bx: number, by: number, value: number): [SerializedGeometry[], SketchConstraint[]] => [
+const angleSketch = (bx: number, by: number, value: number, isAcute?: false): [SerializedGeometry[], SketchConstraint[]] => [
   [line("A", 10, 0), line("B", bx, by)],
   [
     { type: "coincident", id: "co", pointA: { geomId: "A", vertexIndex: 0 }, pointB: { geomId: "B", vertexIndex: 0 } },
     { type: "horizontal", id: "h", line: { geomId: "A" } },
-    { type: "angle", id: "ang", lineA: { geomId: "A" }, lineB: { geomId: "B" }, value },
+    { type: "angle", id: "ang", lineA: { geomId: "A" }, lineB: { geomId: "B" }, value, ...(isAcute === false ? { isAcute } : {}) },
   ],
 ];
+// deg 방향의 길이 10 인 선 B 로 만든 angleSketch
+const angleSketchAt = (deg: number, value: number, isAcute?: false) =>
+  angleSketch(10 * Math.cos((deg * Math.PI) / 180), 10 * Math.sin((deg * Math.PI) / 180), value, isAcute);
 
-test("UI 가 받는 반사각(180°~360°) 각도 치수를 솔버가 맞추면 과구속으로 거부하지 않는다", async () => {
+test("UI 가 받는 반사각(180°~360°) 각도 치수를 과구속으로 거부하지 않고, 선이 지금 있는 쪽에서 맞춘다", async () => {
   // 고치기 전에는 planegcs 가 200° 를 -160° 로 맞춰도, 사후 검증이 acos 로 접은 160° 를 200·20 과만 비교해
   // over-constrained 로 판정했다. 새 치수는 참조로 바뀌고, 기존 치수를 고치면 스케치 전체가 빨개졌다.
-  const reflex200 = await solve(...angleSketch(-10, 3, 200));
-  assert.notEqual(reflex200.status, "over-constrained");
-  assert.ok(Math.abs(lineDeg(reflex200.geoms.get("B")) - -160) < 1e-3);
-
-  const reflex300 = await solve(...angleSketch(-10, -3, 300));
-  assert.notEqual(reflex300.status, "over-constrained");
-  assert.ok(Math.abs(lineDeg(reflex300.geoms.get("B")) - 60) < 1e-3);
+  // 또 빌더가 200° 를 그대로 l2l_angle 에 넘겨 planegcs 가 -160° 로 감았으므로, 이미 맞는 기하(B 가 160°)도
+  // A 의 반대편(-160°)으로 뒤집혔다.
+  const cases: [from: number, value: number, to: number, isAcute?: false][] = [
+    [160, 200, 160], // 반사각 200° 를 이미 만족 → 제자리
+    [163.3, 200, 160], // 거의 맞음 → 같은 쪽에서 조금만
+    [-60, 300, -60], // 시계 방향 쪽도 제자리
+    [20, 200, 20, false], // 보각 표시(isAcute=false)의 보반사각 200° (= 180 + 사잇각 20°) → 제자리
+  ];
+  for (const [from, value, to, isAcute] of cases) {
+    const { status, geoms } = await solve(...angleSketchAt(from, value, isAcute));
+    assert.notEqual(status, "over-constrained", `${from}° 에서 ${value}°`);
+    const deg = lineDeg(geoms.get("B"));
+    assert.ok(Math.abs(deg - to) < 1e-3, `${from}° 에서 ${value}° → ${deg}° (기대 ${to}°)`);
+  }
 });
 
 test("180° 이하 각도 치수와 맞출 수 없는 각도 치수는 예전과 같이 판정한다", async () => {
