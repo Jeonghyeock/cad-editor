@@ -5,8 +5,9 @@ import { SketchConstraintStore } from "src/features/setup/sketch/constraints/Ske
 import { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
 // 실제 planegcs 솔버를 붙인 스케치 store 와 통합 이력을 만든다. 앱의 createGeometryStoreBundle·SetupCanvas 연결과 같다.
-// (Setup.store 를 불러오지 않으려고 연결을 여기서 다시 쓴다.)
+// (Setup.store 를 불러오지 않으려고 연결을 여기서 다시 쓴다.) 이력은 열린 스케치의 명령만 기록하므로 "XY" 스케치를 연 상태로 둔다.
 export async function createSketch(history = new GlobalHistoryManager()) {
+  history.setActiveSketch("XY");
   const store = new SketchGeometryStore();
   const constraintStore = new SketchConstraintStore();
   const solver = new SketchConstraintSolver();

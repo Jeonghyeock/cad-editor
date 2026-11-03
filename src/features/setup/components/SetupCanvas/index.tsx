@@ -19,6 +19,7 @@ import { computeEngineScale, useInputSceneController } from "../../hooks/useInpu
 import { useSketchKeyboardHandler } from "../../hooks/useSketchKeyboardHandler";
 import { useSketchRefCallbacks } from "../../hooks/useSketchRefCallbacks";
 import type SetupScene from "../../rendering/SetupScene";
+import { planeKeyFromSketchPlane } from "../../rendering/SketchPlaneManager";
 import { enterSketchModeAtom, exitSketchModeAtom, type GeometryStoreBundle, setup3DSelectionAtom, setupActiveSketchNameAtom, setupAtom, setupDefinitionShapeHoveredIdAtom, setupDefinitionShapeSelectedIdAtom, setupBakedSketchesAtom, setupChamferModeAtom, setupChamferDistanceAtom, setupChamferDistance2Atom, setupConstraintApplicabilityAtom, setupAppliedConstraintTypesAtom, setupConstraintSolveStatusAtom, setupConstraintVisibilityFilterAtom, setupConstraintVisibleAtom, setupDeletedBodiesAtom, setupDimensionModeAtom, setupDrawToolAtom, setupFilletModeAtom, setupFilletRadiusAtom, setupHiddenBodiesAtom, setupModelsAtom, setupOffsetDistanceAtom, setupOffsetModeAtom, setupOperationsAtom, setupPendingRestoreAtom, setupReferencePlanesAtom, setupRefPlaneModeAtom, setupRefPlanePreviewAtom, setupSelectionInfoAtom, setupSketchConstraintListAtom, setupSketchEntriesAtom, setupSketchGeometryListAtom, setupSketchHoveredItemAtom, setupSketchPlaneSelectionPendingAtom, setupSketchPlaneAtom, setupSketchSelectedConstraintIdAtom, setupSketchSelectedIdsAtom, setupSketchShapeListAtom, setupUndoFlashIdsAtom, setupViewModeAtom } from "../../Setup.store";
 import type { CrossSectionDef, OperationTreeEntry, SelectionPropertyInfo, SerializedGeometry, SerializedSketch, SketchConstraintTreeItem, SketchDrawToolType, SketchGeometryTreeItem, SketchPlane, SketchShapeTreeItem, SketchTreeEntry } from "../../Setup.type";
 import type { ConstraintApplicability, DimensionConstraintType } from "../../sketch/constraints/ConstraintValidator";
@@ -449,7 +450,8 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
         currentPlaneRef.current = plane;
 
         const s = sceneRef.current;
-        const planeKey = s?.getPlaneKey(plane);
+        // 키가 비면 히스토리가 이 스케치의 명령을 기록하지 못한다 — scene 이 없어도 평면에서 같은 형식의 키를 만든다.
+        const planeKey = s?.getPlaneKey(plane) ?? planeKeyFromSketchPlane(plane);
 
         // 기존 저장된 스케치가 있으면 이름 유지 + 엔진 복원
         const saved = s?.getSavedSketch(plane);
@@ -467,7 +469,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
 
         // viewState 에 face source 까지 영속화 — 파일 복원 시 applyCrossSection 재호출 위해.
         enterSketchMode({
-          planeKey: planeKey ?? "",
+          planeKey,
           planeName: currentPlaneNameRef.current,
           faceSource: { modelId: result.modelId, faceGroupId: result.faceGroupId },
         });
@@ -516,7 +518,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       currentPlaneRef.current = sketchPlane;
 
       // 저장된 스케치가 있으면 기존 이름 유지, 없으면 Sketch N
-      const planeKey = s.getPlaneKey(sketchPlane);
+      const planeKey = s.getPlaneKey(sketchPlane) ?? planeKeyFromSketchPlane(sketchPlane);
       const existingEntry = sketchEntries.find((e) => e.planeKey === planeKey);
       if (existingEntry) {
         currentPlaneNameRef.current = existingEntry.planeName;
@@ -542,7 +544,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       }
 
       setActiveSketchName(currentPlaneNameRef.current);
-      enterSketchMode({ planeKey: planeKey ?? "", planeName: currentPlaneNameRef.current });
+      enterSketchMode({ planeKey, planeName: currentPlaneNameRef.current });
       // 진입 시점에 viewport selection 리셋 — SpecTree 의 plane 강조는 viewState.sketchPlaneKey
       // 에서 derive 되므로 selection atom 은 비워도 시각 결과 동일. exit 시 잔존 방지.
       store.set(setup3DSelectionAtom, []);
@@ -1087,10 +1089,9 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
           scene.setOriginPlanesVisible(false);
           // viewState 도 atom 에 재기록 — 다른 entry 경로 (handleEnterSketchByKey / Origin /
           // Reference) 와 대칭. atom 이미 같은 값이라면 no-op (Jotai 가 Object.is 비교).
-          const restoredKey = scene.getPlaneKey(plane);
-          if (restoredKey) {
-            enterSketchMode({ planeKey: restoredKey, planeName, faceSource });
-          }
+          // 건너뛰면 히스토리가 열린 스케치를 모른다 — 키를 늘 만들어 진입을 알린다.
+          const restoredKey = scene.getPlaneKey(plane) ?? planeKeyFromSketchPlane(plane);
+          enterSketchMode({ planeKey: restoredKey, planeName, faceSource });
         }
       } else if (planeKey && enterSketchByKeyRef?.current) {
         // origin / reference / saved-by-key plane — 이름으로 재진입.

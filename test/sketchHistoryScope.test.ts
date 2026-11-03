@@ -132,3 +132,28 @@ test("스케치 진입·종료 atom 이 파일의 이력에 지금 열린 스케
   assert.equal(history.undo(), "geometry");
   assert.equal(store.geometries.has("L"), false);
 });
+
+// 리뷰 반영 — 열린 스케치 키 없이(null·"") 기록된 엔트리가 3D 모드(키 null)에서 적용됐다.
+
+test("스케치가 열려 있지 않을 때 실행한 기하 명령은 기록하지 않아, 3D 의 Ctrl+Z 로 적용되지 않는다", async () => {
+  const { store, history } = await createSketch();
+  history.setActiveSketch(null);
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  assert.equal(store.geometries.has("L"), true);
+
+  // 고치기 전에는 null 키로 기록되어 3D(null)에서 그대로 undo 됐다
+  assert.equal(history.canUndo, false);
+  assert.equal(history.undo(), null);
+  assert.equal(store.geometries.has("L"), true);
+});
+
+test("빈 키로 들어온 스케치는 열린 스케치로 보지 않는다", async () => {
+  const { store, history } = await createSketch();
+  history.setActiveSketch("");
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  history.setActiveSketch(null);
+  history.setActiveSketch("");
+
+  assert.equal(history.undo(), null);
+  assert.equal(store.geometries.has("L"), true);
+});
