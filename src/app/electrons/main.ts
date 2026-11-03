@@ -87,32 +87,31 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  let isAppWindowCreated = false;
   let appWindow: BrowserWindow | null = null;
   // 창이 생기기 전(macOS 콜드 스타트)에 open-file 로 받은 경로. whenReady 에서 창을 만든 뒤 연다.
   const pendingFilePaths: string[] = [];
 
   /**
-   * 안전하게 app window를 생성하고, 중복 방지
+   * 안전하게 app window를 생성하고, 중복 방지.
+   * 창이 닫혀 파괴됐으면(macOS 는 창이 없어도 앱이 남을 수 있다) 새로 만든다 — 파괴된 창의 메서드는 throw 한다.
    */
   const ensureAppWindow = (): BrowserWindow => {
-    if (!isAppWindowCreated) {
+    if (!appWindow || appWindow.isDestroyed()) {
       appWindow = createAppWindow();
-      isAppWindowCreated = true;
     }
-    return appWindow!;
+    return appWindow;
   };
 
   /**
-   * 실행 중인 창을 앞으로 가져오고 파일을 연다
+   * 실행 중인 창(없거나 파괴됐으면 새 창)을 앞으로 가져오고 파일을 연다
    */
   const openFileInAppWindow = (filePath?: string) => {
-    if (!appWindow) return;
+    const win = ensureAppWindow();
 
-    if (appWindow.isMinimized()) appWindow.restore();
-    appWindow.focus();
+    if (win.isMinimized()) win.restore();
+    win.focus();
 
-    if (filePath) sendOpenFile(appWindow.webContents, filePath);
+    if (filePath) sendOpenFile(win.webContents, filePath);
   };
 
   /**
@@ -128,9 +127,9 @@ if (!gotTheLock) {
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
 
-    // 창이 생기기 전(콜드 스타트)이면 whenReady 가 창을 만든 뒤 한 번만 연다. 이미 실행 중이면 second-instance 와
+    // 앱이 준비되기 전(콜드 스타트)이면 whenReady 가 창을 만든 뒤 한 번만 연다. 이미 실행 중이면 second-instance 와
     // 같이 연다 — 예전처럼 ready-to-show 를 기다리면 이미 지나간 이벤트라 열리지 않았다.
-    if (!appWindow) {
+    if (!app.isReady()) {
       pendingFilePaths.push(filePath);
       return;
     }
