@@ -48,3 +48,21 @@ test("저장된 스케치가 없는 평면으로 들어가면 이전 스케치�
   assert.deepEqual(constraintStore.serialize(), []);
   assert.ok(geoStore.geometries.has(REF_ORIGIN_ID));
 });
+
+test("새 스케치를 시작하면 SpecTree 목록이 다시 만들어지도록 기하·shape 버전을 올린 뒤 알린다", async () => {
+  // SetupCanvas 의 렌더 리스너는 geometryVersion·shapeVersion 이 바뀔 때만 기하·shape·구속 목록을 다시 만든다.
+  // 고치기 전에는 비우기만 하고 버전을 올리지 않아, SpecTree 가 이전 스케치의 shape 를 계속 보여 줬다.
+  const { clearClosedSketch, startBlankSketch } = await import("src/features/setup/sketch/sketchStoreReset");
+  const { geoStore, constraintStore } = await sketch1();
+  clearClosedSketch(geoStore, constraintStore);
+  const before = { geometry: geoStore.geometryVersion, shape: geoStore.shapeVersion };
+  let seen = before;
+  geoStore.addRenderListener(() => {
+    seen = { geometry: geoStore.geometryVersion, shape: geoStore.shapeVersion };
+  });
+
+  startBlankSketch(geoStore, constraintStore);
+
+  assert.notEqual(seen.geometry, before.geometry);
+  assert.notEqual(seen.shape, before.shape);
+});

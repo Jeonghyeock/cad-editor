@@ -26,5 +26,10 @@ export function clearClosedSketch(geoStore: SketchGeometryStore, constraintStore
 export function startBlankSketch(geoStore: SketchGeometryStore, constraintStore: SketchConstraintStore): void {
   geoStore.clear();
   constraintStore.clear();
+  // SetupCanvas 의 렌더 리스너는 두 버전이 바뀔 때만 SpecTree 기하·shape·구속 목록을 다시 만든다 —
+  // clear() 는 버전을 올리지 않으므로, 올리지 않으면 이전 스케치의 shape 목록이 그대로 남는다.
+  // injectReferenceGeometry 의 requestRender 보다 먼저 올린다.
+  geoStore.markGeometryChanged();
+  geoStore.markShapesChanged();
   geoStore.injectReferenceGeometry();
 }
