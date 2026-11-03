@@ -912,8 +912,10 @@ export class SolidOperationManager implements EntityPicker {
       axisAngle = Math.atan2(operation.axisDirection!.y, operation.axisDirection!.x);
     }
 
-    // 회전축에 따라 포인트를 LatheGeometry용 Vector2로 변환
-    const lathePoints: THREE.Vector2[] = [];
+    // 회전축에 따라 포인트를 LatheGeometry용 (반지름 dist, 높이 height) 로 분해.
+    // dist 는 아래 basisX 방향 성분이다. (basisX, 축, 법선) 이 오른손 좌표계여야 φ 가 축 방향 기준
+    // 오른손 회전이 되어 native(OCCT MakeRevol) 와 같은 쪽으로 돈다.
+    const radial: { dist: number; height: number }[] = [];
     for (const pt of pts) {
       let dist: number, height: number;
       if (isCustom) {
@@ -925,12 +927,23 @@ export class SolidOperationManager implements EntityPicker {
       } else if (operation.axisType === "y") {
         dist = pt.x; height = pt.y;
       } else {
-        dist = pt.y; height = pt.x;
+        // X 축: 반지름 방향을 -v 로 둔다. v 로 두면 (v, u, n) 이 왼손 좌표계라 회전 방향이 뒤집힌다.
+        dist = -pt.y; height = pt.x;
       }
-      lathePoints.push(new THREE.Vector2(Math.max(0, dist), height));
+      radial.push({ dist, height });
     }
 
-    // 방향별 phiStart/phiLength 계산
+    // 프로파일이 축의 음수 쪽에 있으면 반지름 부호를 뒤집고, 시작 각을 반대쪽 반평면으로 옮긴다.
+    // 그대로 Math.max(0, dist) 를 하면 음수 쪽 프로파일은 모든 점이 축 위로 눌려 폭 0 솔리드가 된다.
+    let maxPositive = 0, maxNegative = 0;
+    for (const { dist } of radial) {
+      maxPositive = Math.max(maxPositive, dist);
+      maxNegative = Math.max(maxNegative, -dist);
+    }
+    const side = maxNegative > maxPositive ? -1 : 1;
+    const lathePoints = radial.map(({ dist, height }) => new THREE.Vector2(Math.max(0, dist * side), height));
+
+    // 방향별 phiStart/phiLength 계산 (프로파일 반평면 기준 각도)
     const dir = operation.revolveDirection ?? "normal";
     const angleRad = (operation.angle * Math.PI) / 180;
     const angle2Rad = ((operation.angle2 ?? operation.angle) * Math.PI) / 180;
@@ -949,6 +962,9 @@ export class SolidOperationManager implements EntityPicker {
     if (operation.clockwise) {
       phiStart = -(phiStart + phiLength);
     }
+    // LatheGeometry 는 점을 (r·sinφ, h, r·cosφ) 로 놓아 φ=0 이 법선(+Z) 쪽이다. 스케치 평면의 +basisX
+    // 반평면은 φ=π/2, -basisX 반평면은 φ=-π/2 이므로 프로파일이 있는 쪽 반평면을 0° 로 맞춘다.
+    phiStart += (side * Math.PI) / 2;
 
     const segments = Math.max(12, Math.ceil((phiLength / (Math.PI * 2)) * 48));
     const geometry = new THREE.LatheGeometry(lathePoints, segments, phiStart, phiLength);
@@ -970,7 +986,7 @@ export class SolidOperationManager implements EntityPicker {
     } else if (operation.axisType === "y") {
       basisX = uVec; basisY = vVec;
     } else {
-      basisX = vVec; basisY = uVec;
+      basisX = vVec.clone().negate(); basisY = uVec;
     }
 
     const matrix = new THREE.Matrix4().makeBasis(basisX, basisY, n);
