@@ -23,6 +23,7 @@ import { enterSketchModeAtom, exitSketchModeAtom, type GeometryStoreBundle, setu
 import type { CrossSectionDef, OperationTreeEntry, SelectionPropertyInfo, SerializedGeometry, SerializedSketch, SketchConstraintTreeItem, SketchDrawToolType, SketchGeometryTreeItem, SketchPlane, SketchShapeTreeItem, SketchTreeEntry } from "../../Setup.type";
 import type { ConstraintApplicability, DimensionConstraintType } from "../../sketch/constraints/ConstraintValidator";
 import { getAppliedConstraintTypes, getConstraintApplicability } from "../../sketch/constraints/ConstraintValidator";
+import { addDrivenDimension } from "../../sketch/constraints/drivenDimension";
 import type { SketchConstraint } from "../../sketch/constraints/SketchConstraint.type";
 import type { SketchConstraintStore } from "../../sketch/constraints/SketchConstraintStore";
 import { computeDependencyHighlight } from "../../sketch/DependencyGraph";
@@ -344,16 +345,14 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       }
     };
     // Over-constrained → driven dimension 프롬프트
-    dimensionTool.onOverConstrained = (constraint, result) => {
+    dimensionTool.onOverConstrained = (constraint) => {
       if (onDrivenDimensionPrompt) {
         onDrivenDimensionPrompt(constraint, (asReference) => {
           const gStore = geometryStoreRef.current;
           if (asReference) {
-            // driven dimension으로 추가 (솔버 무시)
-            const refConstraint = { ...constraint, isReference: true } as typeof constraint & { isReference: true };
-            gStore.applyConstraint(refConstraint);
-            // 값 편집 팝업 트리거
-            setDimensionMode({ type: result.dimType, defaultValue: result.defaultValue });
+            // driven dimension으로 추가 + 선택. 값 패널은 열지 않음 — 참조 치수의 값은 라벨이 현재
+            // 기하에서 계산하고, 열면 OK 가 남아 있던 선택 (직전에 배치한 치수) 을 패널 값으로 바꿨다.
+            addDrivenDimension(gStore, constraint);
           }
           gStore.requestRender();
         });
