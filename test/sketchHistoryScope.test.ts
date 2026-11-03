@@ -192,15 +192,16 @@ test("지운 스케치의 드래그 엔트리는 같은 평면에 새로 만든 
   openSketch(store);
   store.execute(new AddGeometryCommand(line("M", 1, 1, 2, 2)));
   assert.equal(history.undo(), "geometry"); // M
-  assert.equal(history.undo(), "model"); // 스케치 삭제 되돌림
-  const undone = history.undo(); // 지운 스케치의 드래그
+  // 새 스케치가 열려 있는 동안 스케치 삭제는 되돌리지 않으므로, 그 아래 지운 스케치의 드래그에도 닿지 않는다
+  const undone = history.undo();
   // 고치기 전에는 DragSnapshotCommand.undo 가 새 스케치 store 를 지운 스케치의 드래그 전 기하로 바꿨다
   assert.equal(store.geometries.has("L"), false);
   assert.equal(undone, null);
 
-  // 새 스케치를 닫고, 삭제를 되돌려 돌아온 스케치를 다시 열면 그 엔트리를 이어서 되돌린다
+  // 새 스케치를 닫고 삭제를 되돌린 뒤, 돌아온 스케치를 다시 열면 그 엔트리를 이어서 되돌린다
   closeSketch(store);
   history.setActiveSketch(null);
+  assert.equal(history.undo(), "model");
   history.setActiveSketch("XY");
   openSketch(store, savedX1);
   assert.equal(history.undo(), "geometry");
@@ -226,4 +227,70 @@ test("XY 에서 면으로 지운 원이, 닫고 YZ 를 연 뒤의 Ctrl+Z 로 YZ 
   assert.equal(store.geometries.has("c1"), false);
   assert.equal(undone, null);
   assert.equal(history.canUndo, false);
+});
+
+// 리뷰 반영(2차) — 같은 평면에 새 스케치를 연 채 스케치 삭제를 undo 하면, 열린 스케치 밑에서 옛 스케치·트리 엔트리가
+// 되살아나고 닫을 때 bake 가 덮어써 옛 스케치는 사라지고 엔트리는 둘이 됐다.
+
+test("같은 평면에 스케치가 열려 있는 동안에는 스케치 삭제를 undo·redo 하지 않는다", async () => {
+  const { DeleteSketchCommand } = await import("src/features/setup/core/commands/DeleteSketchCommand");
+  const { store, history } = await createSketch();
+  history.setActiveSketch(null);
+
+  const baked = new Map<string, unknown>([["XY", { geometries: [] }]]);
+  const scene = {
+    getSavedSketchByKey: (key: string) => baked.get(key) ?? null,
+    deleteSavedSketch: (key: string) => baked.delete(key),
+    restoreSavedSketch: (key: string, data: unknown) => baked.set(key, data),
+  };
+  let entries: { planeKey: string; planeName: string }[] = [{ planeKey: "XY", planeName: "Sketch 1" }];
+  const setEntries = (u: unknown) => {
+    entries = typeof u === "function" ? u(entries) : (u as typeof entries);
+  };
+  history.executeCommand(new DeleteSketchCommand("XY", setEntries as never, () => scene as never, history));
+  assert.equal(baked.has("XY"), false);
+
+  // 같은 평면에 새 스케치를 연 채로 Ctrl+Z
+  history.setActiveSketch("XY");
+  openSketch(store);
+  assert.equal(history.canUndo, false);
+  assert.equal(history.undo(), null);
+  assert.equal(baked.has("XY"), false);
+  assert.equal(entries.length, 0);
+
+  // 닫으면 되돌릴 수 있다. 되돌린 뒤 다시 XY 를 열면 삭제 redo 도 멈춘다
+  closeSketch(store);
+  history.setActiveSketch(null);
+  assert.equal(history.undo(), "model");
+  assert.equal(baked.has("XY"), true);
+  assert.equal(entries.length, 1);
+  history.setActiveSketch("XY");
+  assert.equal(history.canRedo, false);
+  assert.equal(history.redo(), null);
+  assert.equal(baked.has("XY"), true);
+});
+
+test("같은 평면에 새로 만든 스케치를 닫은 뒤 삭제를 되돌려도 트리 엔트리가 둘이 되지 않는다", async () => {
+  const { DeleteSketchCommand } = await import("src/features/setup/core/commands/DeleteSketchCommand");
+  const { history } = await createSketch();
+  history.setActiveSketch(null);
+  const baked = new Map<string, unknown>([["XY", { name: "Sketch 1" }]]);
+  const scene = {
+    getSavedSketchByKey: (key: string) => baked.get(key) ?? null,
+    deleteSavedSketch: (key: string) => baked.delete(key),
+    restoreSavedSketch: (key: string, data: unknown) => baked.set(key, data),
+  };
+  let entries: { planeKey: string; planeName: string }[] = [{ planeKey: "XY", planeName: "Sketch 1" }];
+  const setEntries = (u: unknown) => {
+    entries = typeof u === "function" ? u(entries) : (u as typeof entries);
+  };
+  history.executeCommand(new DeleteSketchCommand("XY", setEntries as never, () => scene as never, history));
+
+  // 같은 평면에 새 스케치를 열었다가 아무것도 남기지 않고 닫았다 — bake 가 빈 스케치와 엔트리를 만든다
+  entries = [...entries, { planeKey: "XY", planeName: "Sketch 2" }];
+  baked.set("XY", { name: "Sketch 2" });
+
+  assert.equal(history.undo(), "model");
+  assert.deepEqual(entries, [{ planeKey: "XY", planeName: "Sketch 1" }]);
+  assert.deepEqual(baked.get("XY"), { name: "Sketch 1" });
 });
