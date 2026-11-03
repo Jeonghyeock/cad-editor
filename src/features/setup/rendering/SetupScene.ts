@@ -360,7 +360,7 @@ export default class SetupScene {
         this._sceneManager.syncGeometryOverlayCamera();
         // 줌/팬 시 픽셀 기반 크기 요소(점, 핸들, 구속 아이콘) 재렌더링
         this._sceneManager.getGeometryOverlay()?.requestSync();
-      });
+      }, new THREE.Vector3(plane.v.x, plane.v.y, plane.v.z)); // 스케치 V 축이 화면 위쪽, H 축이 화면 오른쪽
       // 그리드 overlay 생성
       this._sketchPlaneManager.createGridOverlay();
       this._sketchPlaneManager.updateGridOverlay(this._sceneManager.orthoCamera);

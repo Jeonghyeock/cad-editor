@@ -355,7 +355,8 @@ export class SceneManager {
 
   // --- Perspective ↔ Orthographic 전환 ---
 
-  switchToOrtho(onGridUpdate: () => void): void {
+  // screenUp: 화면 위쪽이 될 월드 방향 — 스케치 평면의 v(V 축). 스케치 H 축(u)은 그러면 화면 오른쪽을 향한다.
+  switchToOrtho(onGridUpdate: () => void, screenUp: THREE.Vector3): void {
     this._isSketchMode = true;
 
     // 스케치 진입 전 카메라 상태 저장 — sketch 중 파일 전환 시 getCameraState 가
@@ -384,10 +385,12 @@ export class SceneManager {
     this._orthoCamera.far = 10000;
     this._orthoCamera.updateProjectionMatrix();
 
-    // 위치/회전/업 벡터 복사
+    // 위치/회전 복사. up 은 perspective 의 (0,1,0) 이 아니라 스케치 V 축으로 둔다 — 수평 평면(윗면·ZX)은 시선이
+    // (0,1,0) 과 평행해 lookAt 이 화면 방향을 정하지 못하고, |n.y|≥0.9 면 basis 의 upHint 가 X 라서 스케치 축이
+    // 화면 기준 90°(원점이 아닌 윗면은 부동소수 잔차에 따라 임의 각도) 돌았다. 규약(u/v)은 저장 데이터라 그대로 둔다.
     this._orthoCamera.position.copy(cam.position);
     this._orthoCamera.quaternion.copy(cam.quaternion);
-    this._orthoCamera.up.copy(cam.up);
+    this._orthoCamera.up.copy(screenUp).normalize();
 
     // OrbitControls를 ortho 카메라에 재연결
     this._activeCamera = this._orthoCamera;
