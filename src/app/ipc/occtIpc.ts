@@ -1,11 +1,10 @@
 // OCCT Native Addon IPC handlers
 // main process에서 @cad-editor/occt-native 로드, renderer는 IPC로 호출
 
-import { ipcMain } from "electron";
-
-import path from "path";
+import { app, ipcMain } from "electron";
 
 import { OcctChannels } from "src/app/channels/occtChannels";
+import { getOcctAddonCandidates } from "src/app/ipc/occtAddonPath";
 
 import type {
   OcctEdgeData,
@@ -21,15 +20,13 @@ let addon: any = null;
 function getAddon() {
   if (addon) return addon;
 
-  // 여러 경로에서 시도 (개발/프로덕션 모두 대응)
-  const candidates = [
-    // 개발 모드: packages/occt-native/build/Release/
-    path.join(__dirname, "../../../packages/occt-native/build/Release/occt_native.node"),
-    // 개발 모드 (vite 빌드 후)
-    path.join(process.cwd(), "packages/occt-native/build/Release/occt_native.node"),
-    // 프로덕션: extraResource 경로
-    path.join(process.resourcesPath ?? "", "occt_native.node"),
-  ];
+  // 배포판은 resources 아래 하나만, 개발 실행은 저장소의 빌드 결과를 시도 (cwd 후보는 개발 실행에서만)
+  const candidates = getOcctAddonCandidates({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath ?? "",
+    dirname: __dirname,
+    cwd: process.cwd(),
+  });
 
   for (const p of candidates) {
     try {
