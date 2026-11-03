@@ -120,17 +120,32 @@ export function findCornerNearPoint(
 }
 
 /**
+ * 복제본을 만든 변환. 원본의 방향·크기 구속을 그대로 옮기면 솔버가 복제본을 원본 자세·크기로
+ * 되돌리므로, cloneInternalConstraints 가 이 변환에 맞춰 구속을 바꾸거나 뺀다.
+ */
+export type CloneTransform =
+  | { kind: "translate" }
+  | { kind: "rotate"; angle: number } // 회전각 (라디안)
+  | { kind: "mirror"; axisAngle: number } // 대칭축 방향각 (라디안)
+  | { kind: "scale"; factor: number };
+
+// 변환 뒤 방향이 축과 나란한지 판정하는 허용 오차 (단위 벡터 성분)
+const AXIS_ALIGN_EPSILON = 1e-6;
+
+/**
  * 선택된 기하 ID 집합 내부의 구속을 복제하여 새 기하 ID에 매핑
  * 외부 기하와의 구속은 복제하지 않음 (내부 구속만 복제)
  * @param store - SketchGeometryStore
  * @param oldIds - 원본 기하 ID 배열
  * @param newIds - 복제본 기하 ID 배열 (oldIds와 1:1 대응)
+ * @param transform - 복제본을 만든 변환 (방향·치수 구속을 결과에 맞추는 데 사용)
  * @returns 복제된 SketchConstraint 배열
  */
 export function cloneInternalConstraints(
   store: SketchGeometryStore,
   oldIds: string[],
   newIds: string[],
+  transform: CloneTransform,
 ): SketchConstraint[] {
   if (!store.constraintStore || oldIds.length === 0) return [];
 
@@ -162,6 +177,31 @@ export function cloneInternalConstraints(
     geomId: idMap.get(ref.geomId)!,
   });
 
+  // 변환 뒤 방향 벡터 (평행이동·스케일은 방향을 바꾸지 않음)
+  const mapDirection = (x: number, y: number): { x: number; y: number } => {
+    if (transform.kind === "rotate") {
+      const cos = Math.cos(transform.angle), sin = Math.sin(transform.angle);
+      return { x: x * cos - y * sin, y: x * sin + y * cos };
+    }
+    if (transform.kind === "mirror") {
+      const cos = Math.cos(2 * transform.axisAngle), sin = Math.sin(2 * transform.axisAngle);
+      return { x: x * cos + y * sin, y: x * sin - y * cos };
+    }
+    return { x, y };
+  };
+
+  // horizontal/vertical 은 변환 뒤에도 축과 나란할 때만 그 방향 구속으로 옮긴다 (90° 회전이면 H↔V).
+  // 비스듬해진 복제본에 그대로 걸면 솔버가 복제본을 축에 다시 세우며 찌그러뜨린다.
+  const mapAxisConstraintType = (x: number, y: number): "horizontal" | "vertical" | null => {
+    const d = mapDirection(x, y);
+    if (Math.abs(d.y) < AXIS_ALIGN_EPSILON) return "horizontal";
+    if (Math.abs(d.x) < AXIS_ALIGN_EPSILON) return "vertical";
+    return null;
+  };
+
+  // 길이 치수는 스케일 배율만큼 바꾼다 (회전·대칭·평행이동은 길이를 지킴, 각도는 배율과 무관)
+  const lengthScale = transform.kind === "scale" ? transform.factor : 1;
+
   for (const c of store.constraintStore.constraints.values()) {
     let cloned: SketchConstraint | null = null;
 
@@ -172,13 +212,12 @@ export function cloneInternalConstraints(
         }
         break;
       case "horizontal":
-        if (allRefsInternal([c.line.geomId])) {
-          cloned = { type: "horizontal", id: generateCloneId(), line: mapGeomRef(c.line) };
-        }
-        break;
       case "vertical":
         if (allRefsInternal([c.line.geomId])) {
-          cloned = { type: "vertical", id: generateCloneId(), line: mapGeomRef(c.line) };
+          const type = c.type === "horizontal" ? mapAxisConstraintType(1, 0) : mapAxisConstraintType(0, 1);
+          if (type) {
+            cloned = { type, id: generateCloneId(), line: mapGeomRef(c.line) };
+          }
         }
         break;
       // fix 구속은 복제하지 않음 (좌표 의존적이므로)
@@ -186,7 +225,7 @@ export function cloneInternalConstraints(
         break;
       case "distance":
         if (allRefsInternal([c.pointA.geomId, c.pointB.geomId])) {
-          cloned = { type: "distance", id: generateCloneId(), pointA: mapPointRef(c.pointA), pointB: mapPointRef(c.pointB), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+          cloned = { type: "distance", id: generateCloneId(), pointA: mapPointRef(c.pointA), pointB: mapPointRef(c.pointB), value: c.value * lengthScale, ...(c.isReference ? { isReference: true } : {}) };
         }
         break;
       case "equal":
@@ -241,12 +280,12 @@ export function cloneInternalConstraints(
         break;
       case "radius":
         if (allRefsInternal([c.circle.geomId])) {
-          cloned = { type: "radius", id: generateCloneId(), circle: mapGeomRef(c.circle), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+          cloned = { type: "radius", id: generateCloneId(), circle: mapGeomRef(c.circle), value: c.value * lengthScale, ...(c.isReference ? { isReference: true } : {}) };
         }
         break;
       case "line_length":
         if (allRefsInternal([c.line.geomId])) {
-          cloned = { type: "line_length", id: generateCloneId(), line: mapGeomRef(c.line), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+          cloned = { type: "line_length", id: generateCloneId(), line: mapGeomRef(c.line), value: c.value * lengthScale, ...(c.isReference ? { isReference: true } : {}) };
         }
         break;
       case "angle":
@@ -256,7 +295,7 @@ export function cloneInternalConstraints(
         break;
       case "point_line_distance":
         if (allRefsInternal([c.point.geomId, c.line.geomId])) {
-          cloned = { type: "point_line_distance", id: generateCloneId(), point: mapPointRef(c.point), line: mapGeomRef(c.line), value: c.value, ...(c.isReference ? { isReference: true } : {}) };
+          cloned = { type: "point_line_distance", id: generateCloneId(), point: mapPointRef(c.point), line: mapGeomRef(c.line), value: c.value * lengthScale, ...(c.isReference ? { isReference: true } : {}) };
         }
         break;
       case "symmetric":

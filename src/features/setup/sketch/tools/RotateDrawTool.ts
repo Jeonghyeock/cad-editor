@@ -260,7 +260,7 @@ export class RotateDrawTool extends DrawTool {
       const oldIds = this._targetIds;
       const newIds = rotated.map((g) => g.id);
       allGeoms.push(...rotated);
-      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds));
+      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds, { kind: "rotate", angle: angle * i }));
     }
 
     if (allGeoms.length === 0) {

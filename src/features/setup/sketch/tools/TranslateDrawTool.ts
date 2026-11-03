@@ -200,7 +200,7 @@ export class TranslateDrawTool extends DrawTool {
       const oldIds = this._targetIds;
       const newIds = translated.map((g) => g.id);
       allGeoms.push(...translated);
-      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds));
+      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds, { kind: "translate" }));
     }
 
     if (allGeoms.length === 0) {
