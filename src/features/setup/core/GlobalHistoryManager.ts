@@ -40,9 +40,29 @@ function restoreGeometries(store: SketchGeometryStore, snapshot: GeometrySnapsho
   }
 }
 
+// 실행 전후로 실제로 바뀐(또는 생기거나 없어진) 기하만 남긴다 — 엔트리마다 스케치 전체를 두 벌씩 쌓지 않게.
+// 바뀌지 않은 기하는 undo/redo 때 앞뒤 엔트리를 차례로 되돌린 결과로 이미 그 시점 좌표에 있다.
+function diffSnapshots(
+  before: GeometrySnapshot,
+  after: GeometrySnapshot,
+): { before: GeometrySnapshot; after: GeometrySnapshot } {
+  const same = (a: SerializedGeometry, b: SerializedGeometry) => JSON.stringify(a) === JSON.stringify(b);
+  const changedBefore: GeometrySnapshot = new Map();
+  const changedAfter: GeometrySnapshot = new Map();
+  for (const [id, geom] of before) {
+    const next = after.get(id);
+    if (!next || !same(geom, next)) changedBefore.set(id, geom);
+  }
+  for (const [id, geom] of after) {
+    const prev = before.get(id);
+    if (!prev || !same(prev, geom)) changedAfter.set(id, geom);
+  }
+  return { before: changedBefore, after: changedAfter };
+}
+
 /**
  * 기하 명령을 실행·솔브하고 accept 로 받아들일지 정한다 (히스토리 기록은 하지 않음). 거부하면 명령을 되돌리고 좌표도
- * 실행 전으로 돌린다. 반환: 받아들였으면 실행 전·후 좌표 스냅샷, 거부했으면 null.
+ * 실행 전으로 돌린다. 반환: 받아들였으면 실행 전후로 바뀐 기하의 전·후 스냅샷, 거부했으면 null.
  */
 export function applyGeometryCommand(
   command: GeometryCommand,
@@ -67,7 +87,7 @@ export function applyGeometryCommand(
   store.recomputeFaces();
   store.markGeometryChanged();
   store.requestRender();
-  return { before, after };
+  return before && after ? diffSnapshots(before, after) : {};
 }
 
 /**
