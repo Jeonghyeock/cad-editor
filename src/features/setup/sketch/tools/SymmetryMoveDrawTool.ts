@@ -257,7 +257,8 @@ export class SymmetryMoveDrawTool extends DrawTool {
     // 내부 구속 복제 (원본 제거 전에 수행)
     const oldIds = this._targetIds;
     const newIds = mirrored.map((g) => g.id);
-    const clonedConstraints = cloneInternalConstraints(store, oldIds, newIds);
+    const axisAngle = Math.atan2(axisB.y - axisA.y, axisB.x - axisA.x);
+    const clonedConstraints = cloneInternalConstraints(store, oldIds, newIds, { kind: "mirror", axisAngle });
 
     // 원본 기하 수집
     const removedGeoms = this._targetIds

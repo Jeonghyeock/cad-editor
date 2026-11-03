@@ -244,13 +244,14 @@ export class ScaleDrawTool extends DrawTool {
     const allConstraints: ReturnType<typeof cloneInternalConstraints> = [];
 
     for (let i = 1; i <= count; i++) {
-      const scaled = this._computeScaledGeometries(store, Math.pow(scale, i), false, i);
+      const factor = Math.pow(scale, i);
+      const scaled = this._computeScaledGeometries(store, factor, false, i);
       if (scaled.length === 0) continue;
 
       const oldIds = this._targetIds;
       const newIds = scaled.map((g) => g.id);
       allGeoms.push(...scaled);
-      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds));
+      allConstraints.push(...cloneInternalConstraints(store, oldIds, newIds, { kind: "scale", factor }));
     }
 
     if (allGeoms.length === 0) {

@@ -271,7 +271,8 @@ export class MirrorDrawTool extends DrawTool {
     // 내부 구속 복제
     const oldIds = this._targetIds;
     const newIds = mirrored.map((g) => g.id);
-    const clonedConstraints = cloneInternalConstraints(store, oldIds, newIds);
+    const axisAngle = Math.atan2(axisB.y - axisA.y, axisB.x - axisA.x);
+    const clonedConstraints = cloneInternalConstraints(store, oldIds, newIds, { kind: "mirror", axisAngle });
 
     // 추가만 수행 (제거 없음)
     store.execute(new CompoundSketchCommand([], mirrored, [], clonedConstraints));
