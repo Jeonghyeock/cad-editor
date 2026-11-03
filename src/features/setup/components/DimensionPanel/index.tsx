@@ -9,6 +9,8 @@ import type { DimensionConstraintType } from "../../sketch/constraints/Constrain
 
 import FloatingPanel from "../FloatingPanel";
 
+import { formatDimensionInput, resolveDimensionInput } from "./dimensionInput";
+
 type DimensionPanelProps = {
   type: DimensionConstraintType;
   defaultValue: number;
@@ -47,7 +49,9 @@ const DimensionPanel = memo(({ type, defaultValue, onConfirm, onCancel }: Dimens
     () => (isLength ? lu.toDisplay(defaultValue) : defaultValue),
     [defaultValue, isLength, lu],
   );
-  const [value, setValue] = useState(initialDisplay.toFixed(2));
+  // 처음 표시한 문자열 — 입력이 이것과 같으면 OK 시 defaultValue 를 그대로 commit (반올림 오차 방지).
+  const [initialText] = useState(() => formatDimensionInput(initialDisplay));
+  const [value, setValue] = useState(initialText);
   const [hasError, setHasError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // 단위 label — title 에 표시. angle 은 °, length 는 mm/cm/m/in.
@@ -62,23 +66,22 @@ const DimensionPanel = memo(({ type, defaultValue, onConfirm, onCancel }: Dimens
     }
   }, []);
 
+  // length 타입은 display → mm 역환산 후 commit.
+  const resolve = useCallback(
+    (text: string) => resolveDimensionInput(text, initialText, defaultValue, type, isLength ? lu.fromDisplay : (v) => v),
+    [initialText, defaultValue, type, isLength, lu],
+  );
+
   // 값 변경 시 에러 상태 검증
   useEffect(() => {
-    const parsed = parseFloat(value);
-    const invalid = isNaN(parsed) || (type === "line_angle" ? false : parsed <= 0) || (type === "angle" && parsed >= 360);
-    setHasError(invalid);
-  }, [value, type]);
+    setHasError(resolve(value) === null);
+  }, [value, resolve]);
 
   const handleConfirm = useCallback(() => {
-    const parsed = parseFloat(value);
-    if (isNaN(parsed)) return;
-    if (type !== "line_angle" && parsed <= 0) return;
-    // angle: 0 < value < 360 — 사잇각 / 보각 / 반사각 / 보반사각 모두 허용
-    if (type === "angle" && parsed >= 360) return;
-    // length 타입은 display → mm 역환산 후 commit.
-    const committed = isLength ? lu.fromDisplay(parsed) : parsed;
+    const committed = resolve(value);
+    if (committed === null) return;
     onConfirm(committed);
-  }, [value, type, onConfirm, isLength, lu]);
+  }, [value, resolve, onConfirm]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
