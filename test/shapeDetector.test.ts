@@ -94,3 +94,27 @@ test("열린 꺾은선은 면이 아니다", () => {
     assert.deepEqual(faces(sketch(segs)), [], `꺾은선 ${k}`);
   }
 });
+
+test("다리 선으로 바깥 루프와 이어진 안쪽 루프는 다리 없이 둘 때처럼 바깥·안쪽 면이 따로다", async () => {
+  // 최소 면을 돌게 고친 뒤 다리를 뺀 바깥·안쪽 루프 lineIds 가 한 shape 에 섞였다(그 전에는 안쪽 루프가 아예 빠졌다).
+  // 안쪽 루프는 제 면으로 따로 잡히고, 돌출할 때 포함 깊이로 구멍이 된다(다리 없이 둘 때와 같은 표현)
+  const { getShapeVerticesFromGeometries } = await import("src/features/setup/sketch/shapeDetector");
+  const outer: Seg[] = [["o1", 0, 0, 100, 0], ["o2", 100, 0, 100, 100], ["o3", 100, 100, 0, 100], ["o4", 0, 100, 0, 0]];
+  const inner: Seg[] = [["i1", 40, 40, 60, 40], ["i2", 60, 40, 60, 60], ["i3", 60, 60, 40, 60], ["i4", 40, 60, 40, 40]];
+  const withBridge = sketch([...outer, ...inner, ["br", 0, 0, 40, 40]]);
+  assert.deepEqual(faces(withBridge), faces(sketch([...outer, ...inner])));
+  assert.deepEqual(faces(withBridge), ["i1,i2,i3,i4", "o1,o2,o3,o4"]);
+  const geometries = new Map<string, SerializedGeometry>(
+    [...outer, ...inner].map(([id, x1, y1, x2, y2]) => [id, { type: "line", id, x1, y1, x2, y2 }]),
+  );
+  for (const shape of withBridge) assert.equal(getShapeVerticesFromGeometries(shape, geometries).length, 4);
+});
+
+test("다리 선으로 이은 나란한 두 사각형은 각자 면이고 다리는 들어가지 않는다", () => {
+  const shapes = sketch([
+    ...SQUARE,
+    ["b2", 30, 0, 40, 0], ["r2", 40, 0, 40, 10], ["t2", 40, 10, 30, 10], ["l2", 30, 10, 30, 0],
+    ["br", 10, 0, 30, 0],
+  ]);
+  assert.deepEqual(faces(shapes), ["b,l,r,t", "b2,l2,r2,t2"]);
+});
