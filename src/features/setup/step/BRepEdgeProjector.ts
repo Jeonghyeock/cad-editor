@@ -96,12 +96,12 @@ export function projectBRepEdge(
         }
       }
 
-      // 원이 평면과 거의 수직 (dot < 0.05) → 직선으로 투영
+      // 원이 평면과 거의 수직 (dot < 0.05) → 직선으로 투영.
+      // 시작·끝점만 이으면 전체 원(시작=끝)은 길이 0 으로 빠지고, 반원처럼 범위 안에서 더 멀리 가는 호는 짧아진다
       if (dot < 0.05) {
-        const startPt = circlePointAt(edge, edge.startParam);
-        const endPt = circlePointAt(edge, edge.endParam);
-        const p1 = proj(startPt);
-        const p2 = proj(endPt);
+        const [tMin, tMax] = perpendicularCircleExtent(edge, normal);
+        const p1 = proj(circlePointAt(edge, tMin));
+        const p2 = proj(circlePointAt(edge, tMax));
         if (dist2d(p1, p2) < 1e-4) return null;
         return {
           type: "line",
@@ -193,6 +193,38 @@ function circlePointAt(edge: BRepEdgeCurve & { type: "circle" }, t: number): Vec
     y: edge.center.y + r * (c * xd.y + s * yd.y),
     z: edge.center.z + r * (c * xd.z + s * yd.z),
   };
+}
+
+// 스케치 평면과 수직인 원(호)이 투영된 선분의 양 끝 매개변수.
+// 선분 방향 d = axis × normal 위로 원 위 점의 성분은 r·cos(t − φ) 라서, 범위의 양 끝과 범위 안의 극값 φ + kπ 중
+// 성분이 가장 작은 t 와 가장 큰 t 가 선분의 양 끝이다.
+function perpendicularCircleExtent(edge: BRepEdgeCurve & { type: "circle" }, normal: Vec3): [number, number] {
+  const a = edge.axis;
+  const xd = edge.xDir;
+  const d = {
+    x: a.y * normal.z - a.z * normal.y,
+    y: a.z * normal.x - a.x * normal.z,
+    z: a.x * normal.y - a.y * normal.x,
+  };
+  // yd = axis × xDir
+  const yd = {
+    x: a.y * xd.z - a.z * xd.y,
+    y: a.z * xd.x - a.x * xd.z,
+    z: a.x * xd.y - a.y * xd.x,
+  };
+  const phi = Math.atan2(yd.x * d.x + yd.y * d.y + yd.z * d.z, xd.x * d.x + xd.y * d.y + xd.z * d.z);
+
+  const ts = [edge.startParam, edge.endParam];
+  for (let t = phi + Math.ceil((edge.startParam - phi) / Math.PI) * Math.PI; t < edge.endParam; t += Math.PI) {
+    ts.push(t);
+  }
+  const along = (t: number) => Math.cos(t - phi);
+  let tMin = ts[0], tMax = ts[0];
+  for (const t of ts) {
+    if (along(t) < along(tMin)) tMin = t;
+    if (along(t) > along(tMax)) tMax = t;
+  }
+  return [tMin, tMax];
 }
 
 // 원 → polyline 샘플링 → SerializedGeometry
