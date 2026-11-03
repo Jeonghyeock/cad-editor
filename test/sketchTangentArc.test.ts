@@ -157,3 +157,29 @@ test("Profile 을 시계 방향 탄젠트 호로 닫아도 호가 바깥으로 �
   assert.ok(distance(onFirst, { x: 0, y: 0 }) < 1e-6 && distance(onArc, { x: 0, y: 0 }) < 1e-6);
   assert.equal(store.solveStatus, "ok");
 });
+
+test("시계 방향 3점 호로 시작한 Profile 을 닫으면 닫는 coincident 가 체인 시작점에 붙는다", async () => {
+  // 고치기 전에는 첫 세그먼트가 호면 시작을 늘 vertex 1 로 봐서, start/end 를 바꿔 둔 시계 방향 호에서는
+  // 닫는 coincident 가 호의 반대쪽 끝((10,-10))에 붙었다
+  const { ProfileDrawTool } = await import("src/features/setup/sketch/tools/ProfileDrawTool");
+  const store = await createSketch();
+  const tool = new ProfileDrawTool();
+  tool.profileMode = "three-point-arc";
+  // (0,0) 에서 중심 (0,-10) 원을 따라 시계 방향으로 (10,-10) 까지
+  tool.applyInputValues(store, { H: 0, V: 0 });
+  tool.applyInputValues(store, { H: 10 * Math.SQRT1_2, V: -10 + 10 * Math.SQRT1_2 });
+  tool.applyInputValues(store, { H: 10, V: -10 });
+  tool.profileMode = "line";
+  tool.applyInputValues(store, { H: 0, V: -20 });
+  tool.applyInputValues(store, { H: 0, V: 0 }); // 시작점 → 닫기
+
+  const [arc] = userGeometries(store, "arc");
+  assert.ok(Math.abs(sweep(arc) - Math.PI / 2) < 1e-6, `sweep ${(sweep(arc) * 180 / Math.PI).toFixed(1)}°`);
+  const closing = userGeometries(store, "line").at(-1); // 마지막에 그린 닫는 선
+  assert.ok(closing, "닫는 선이 있어야 한다");
+  const [onClosing, onArc] = joinPoints(store, closing.id, arc.id);
+  assert.ok(distance(onClosing, { x: 0, y: 0 }) < 1e-6 && distance(onArc, { x: 0, y: 0 }) < 1e-6,
+    `닫는 선 (${onClosing.x}, ${onClosing.y}) / 호 (${onArc.x}, ${onArc.y})`);
+  assert.equal(store.solveStatus, "ok");
+  assert.equal(store.shapes.length, 1);
+});
