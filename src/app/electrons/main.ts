@@ -7,6 +7,7 @@ import { FileChannels } from "src/app/channels/fileChannels";
 import { MenuChannels } from "src/app/channels/menuChannels";
 
 import { createAppWindow } from "./appWindow";
+import { installReactDevTools } from "./devTools";
 import { sendOpenFile } from "./sendOpenFile";
 
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
@@ -164,12 +165,9 @@ if (!gotTheLock) {
     }
 
     // DevTools 확장 — 패키징하지 않은 개발 실행에서만. 배포판이 시작할 때 Google 에서 확장을 내려받아
-    // 프로덕션 세션에 싣지 않도록(README '모두 로컬') 막고, 동적 import 로 main 번들에서도 뺀다.
+    // 프로덕션 세션에 싣지 않도록(README '모두 로컬') 막고, 동적 import 로 main 번들에서도 뺀다(devTools.ts).
     if (!app.isPackaged) {
-      import("electron-devtools-installer")
-        .then(({ default: installExtension, REACT_DEVELOPER_TOOLS }) =>
-          installExtension(REACT_DEVELOPER_TOOLS),
-        )
+      installReactDevTools()
         .then((name) => console.info(`Added Extension: ${name}`)) // eslint-disable-line
         .catch((err) => console.info("An error occurred: ", err)); // eslint-disable-line
     }
