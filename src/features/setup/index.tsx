@@ -94,6 +94,7 @@ import {
   buildOperationContextMenuItems,
   buildSketchContextMenuItems,
 } from "./utils/contextMenuBuilders";
+import { resolveIfSameFile } from "./utils/fileScopedTask";
 import {
   generateGeometryId,
   generateOperationId,
@@ -437,22 +438,32 @@ const Input = () => {
       loadingRef.current = true;
       setImportLoading(true);
       try {
-        const buffer = await file.arrayBuffer();
-        // 한 프레임 양보 — 로딩 UI가 렌더링된 후 파싱 실행
-        await new Promise((r) => requestAnimationFrame(r));
+        // 불러오는 동안 다른 파일 탭으로 바뀌면 결과를 버린다. 그대로 쓰면 모델은 바뀐 파일에, Import 명령은
+        // 시작한 파일의 이력에 들어간다(첫 WASM 로드 등 비동기 구간이 길 수 있다).
+        const model = await resolveIfSameFile(
+          () => store.get(fileIdAtom),
+          async () => {
+            const buffer = await file.arrayBuffer();
+            // 한 프레임 양보 — 로딩 UI가 렌더링된 후 파싱 실행
+            await new Promise((r) => requestAnimationFrame(r));
 
-        // Native Addon 우선, 실패 시 WASM 폴백
-        let model;
-        const nativeOk = await isNativeAvailable();
-        if (nativeOk) {
-          try {
-            model = await loadStepFileNative(buffer, file.name);
-          } catch (nativeErr) {
-            console.error("[STEP] Native failed, WASM fallback:", nativeErr);
-            model = await loadStepFile(buffer, file.name);
-          }
-        } else {
-          model = await loadStepFile(buffer, file.name);
+            // Native Addon 우선, 실패 시 WASM 폴백
+            const nativeOk = await isNativeAvailable();
+            if (nativeOk) {
+              try {
+                return await loadStepFileNative(buffer, file.name);
+              } catch (nativeErr) {
+                console.error("[STEP] Native failed, WASM fallback:", nativeErr);
+                return await loadStepFile(buffer, file.name);
+              }
+            }
+            return await loadStepFile(buffer, file.name);
+          },
+        );
+        if (!model) {
+          // eslint-disable-next-line no-console
+          console.warn("STEP 파일을 불러오는 동안 파일이 바뀌어 결과를 버림:", file.name);
+          return;
         }
         const getScene = () => sceneRef.current;
         executeCommand(new ImportModelCommand(model, setModels, getScene));
@@ -464,7 +475,7 @@ const Input = () => {
         setImportLoading(false);
       }
     },
-    [executeCommand, setModels],
+    [executeCommand, setModels, store],
   );
 
   // SpecTree hover 중 플래그 (3D pointerMove가 hover를 리셋하지 않도록)
