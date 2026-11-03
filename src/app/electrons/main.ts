@@ -1,7 +1,4 @@
 import { app, BrowserWindow } from "electron";
-import installExtension, {
-  REACT_DEVELOPER_TOOLS,
-} from "electron-devtools-installer";
 import electronSquirrelStartup from "electron-squirrel-startup";
 
 import { spawnSync } from "child_process";
@@ -166,10 +163,16 @@ if (!gotTheLock) {
       });
     }
 
-    // DevTools 확장
-    installExtension(REACT_DEVELOPER_TOOLS)
-      .then((name) => console.info(`Added Extension: ${name}`)) // eslint-disable-line
-      .catch((err) => console.info("An error occurred: ", err)); // eslint-disable-line
+    // DevTools 확장 — 패키징하지 않은 개발 실행에서만. 배포판이 시작할 때 Google 에서 확장을 내려받아
+    // 프로덕션 세션에 싣지 않도록(README '모두 로컬') 막고, 동적 import 로 main 번들에서도 뺀다.
+    if (!app.isPackaged) {
+      import("electron-devtools-installer")
+        .then(({ default: installExtension, REACT_DEVELOPER_TOOLS }) =>
+          installExtension(REACT_DEVELOPER_TOOLS),
+        )
+        .then((name) => console.info(`Added Extension: ${name}`)) // eslint-disable-line
+        .catch((err) => console.info("An error occurred: ", err)); // eslint-disable-line
+    }
   });
 
   /**
