@@ -372,8 +372,9 @@ export class ModelManager implements EntityPicker {
 
     for (const [modelId, group] of this._stepModelGroups) {
       if (!group.visible) continue;
+      // 몸체 메시만 — group 에 붙는 꼭짓점 hover/선택 구슬(Mesh)을 맞히면 그 순번이 bodyIndex 로 나갔다
       const meshes = group.children.filter(
-        (c): c is THREE.Mesh => c instanceof THREE.Mesh,
+        (c): c is THREE.Mesh => c instanceof THREE.Mesh && typeof c.userData.bodyIndex === "number",
       );
       const visibleMeshes = meshes.filter((m) => m.visible);
       if (visibleMeshes.length === 0) continue;
