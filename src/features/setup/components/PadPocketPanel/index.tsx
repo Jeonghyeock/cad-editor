@@ -33,17 +33,20 @@ const PadPocketPanel = memo(({
   onCancel,
 }: PadPocketPanelProps) => {
   const [mode] = useAtom(setupPadPocketModeAtom);
+  // 편집 모드는 기존 operation 의 depth2·draftAngle 로 시작한다. depth·0 으로 시작하면 Depth 만 바꿔
+  // OK 해도 반대 방향 깊이와 테이퍼가 지워진다.
   const [depth, setDepth] = useState(mode?.depth ?? 20);
-  const [depth2, setDepth2] = useState(mode?.depth ?? 20);
+  const [depth2, setDepth2] = useState(mode?.depth2 ?? mode?.depth ?? 20);
   const [direction, setDirection] = useState<PadPocketDirection>(mode?.direction ?? "normal");
-  const [draftAngle, setDraftAngle] = useState(0);
+  const [draftAngle, setDraftAngle] = useState(mode?.draftAngle ?? 0);
 
   // 모드 변경 시 초기값 동기화
   useEffect(() => {
     if (mode) {
       setDepth(mode.depth);
-      setDepth2(mode.depth);
+      setDepth2(mode.depth2 ?? mode.depth);
       setDirection(mode.direction);
+      setDraftAngle(mode.draftAngle ?? 0);
     }
   }, [mode]);
 
