@@ -126,23 +126,43 @@ const fitArc = (pts: Vec2[]): { cx: number; cy: number; r: number; startAngle: n
     : { ...circle, startAngle: firstAngle, endAngle: lastAngle };
 };
 
+// 거의 일직선인 점을 합친 뒤 꼭짓점이 이만큼 이하면 다각형으로 보고 선분들로 낸다. degree 없는 curve 는
+// 3차 B-spline 으로 그려져 모서리가 둥글어진다. occt-import-js 테셀레이션을 실측하면 다각형 면(사각형·육각형·L 자)은
+// 4~6 개, 곡선이 섞인 경계는 보통 14 개 이상(필렛 상자 윗면 24~52, 기울여 본 구멍 26~106)이었다. 12 개 이하로 나뉜
+// 곡선은 한 마디가 30° 이상인 아주 거친 테셀레이션(10 m 판의 r=1 구멍 10 개 등)뿐이라, 선분으로 그려도 테셀레이션 그대로다.
+const MAX_POLYGON_VERTICES = 12;
+// 꺾임이 이보다 작은 점은 직선 위의 점으로 합친다. 실측에서 직선 엣지 위 점의 꺾임은 0, 테셀레이션된 곡선은 2.65° 이상이었다
+const MIN_CORNER_TURN = Math.PI / 180;
+
+// 거의 일직선인 점을 합친 꼭짓점들. 닫힌 polyline 은 마지막(= 첫) 점을 빼고, 열린 것은 양 끝을 남긴다
+const polygonCorners = (pts: Vec2[], closed: boolean): Vec2[] => {
+  const n = closed ? pts.length - 1 : pts.length;
+  return pts.slice(0, n).filter((p, i) => {
+    if (!closed && (i === 0 || i === n - 1)) return true;
+    const prev = pts[(i - 1 + n) % n], next = pts[(i + 1) % n];
+    return Math.abs(angleBetween(p.x - prev.x, p.y - prev.y, next.x - p.x, next.y - p.y)) >= MIN_CORNER_TURN;
+  });
+};
+
 // 고유 ID 생성
 const generateId = (): string => generateProjectionId();
 
-// 2D polyline → SerializedGeometry 변환 (참조 기하).
+const lineGeometry = (a: Vec2, b: Vec2): SerializedGeometry => ({
+  type: "line",
+  id: generateId(),
+  x1: a.x, y1: a.y,
+  x2: b.x, y2: b.y,
+  isReference: true,
+});
+
+// 2D polyline → SerializedGeometry 변환 (참조 기하). 다각형 경계는 변마다 선분 하나씩이라 여러 개를 돌려준다.
 // 면 경계는 거의 언제나 닫혀 있어 열린 polyline(호 판별)은 메시로 만들기 어렵다 — 테스트가 직접 부르도록 내보낸다
-export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
-  if (pts.length < 2) return null;
+export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry[] => {
+  if (pts.length < 2) return [];
 
   // 직선 판별
   if (fitLine(pts)) {
-    return {
-      type: "line",
-      id: generateId(),
-      x1: pts[0].x, y1: pts[0].y,
-      x2: pts[pts.length - 1].x, y2: pts[pts.length - 1].y,
-      isReference: true,
-    };
+    return [lineGeometry(pts[0], pts[pts.length - 1])];
   }
 
   const closed = isClosed(pts);
@@ -153,12 +173,12 @@ export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
   if (closed) {
     const circle = fitCircle(pts);
     if (circle && coversFullCircle(pts, circle)) {
-      return {
+      return [{
         type: "circle",
         id: generateId(),
         cx: circle.cx, cy: circle.cy, r: circle.r,
         isReference: true,
-      };
+      }];
     }
   }
 
@@ -166,14 +186,21 @@ export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
   if (!closed) {
     const arc = fitArc(pts);
     if (arc) {
-      return {
+      return [{
         type: "arc",
         id: generateId(),
         cx: arc.cx, cy: arc.cy, r: arc.r,
         startAngle: arc.startAngle, endAngle: arc.endAngle,
         isReference: true,
-      };
+      }];
     }
+  }
+
+  // 꼭짓점이 적으면 다각형 → 변마다 선분. 겹치는 변(큐브 윗면·아랫면·옆면)은 deduplicateGeometries 가 합친다
+  const corners = polygonCorners(pts, closed);
+  if (corners.length <= MAX_POLYGON_VERTICES) {
+    const ring = closed ? [...corners, corners[0]] : corners;
+    return ring.slice(1).map((p, i) => lineGeometry(ring[i], p));
   }
 
   // 폴백: Ramer-Douglas-Peucker 간소화 후 curve로 변환
@@ -181,12 +208,12 @@ export const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
   // 간소화 후에도 점이 너무 많으면 다운샘플링
   const maxPts = Math.min(30, Math.max(8, Math.ceil(polylineLength(pts) / 5)));
   const finalPts = simplified.length > maxPts ? downsamplePolyline(simplified, maxPts) : simplified;
-  return {
+  return [{
     type: "curve",
     id: generateId(),
     points: finalPts,
     isReference: true,
-  };
+  }];
 };
 
 // polyline 총 길이
@@ -337,8 +364,7 @@ export const projectModelEdgesToSketch = (
       }
       if (totalLen < 0.01) continue;
 
-      const geom = polylineToGeometry(projected);
-      if (geom) allGeoms.push(geom);
+      allGeoms.push(...polylineToGeometry(projected));
     }
   }
 

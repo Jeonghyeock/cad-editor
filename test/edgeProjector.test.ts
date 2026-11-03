@@ -110,8 +110,10 @@ const arcSweep = (g: SerializedGeometry & { type: "arc" }) => {
 test("열린 경계가 시계 방향으로 돌아도 같은 90° 호가 된다 (보각 호가 아니다)", () => {
   // 스케치 호는 startAngle→endAngle 반시계다. 고치기 전에는 첫 점을 시작으로 고정해, 시계 방향 체인이 270° 호가 됐다
   for (const degs of [[0, 15, 30, 45, 60, 75, 90], [90, 75, 60, 45, 30, 15, 0]]) {
-    const g = polylineToGeometry(onCircle(degs));
-    assert.ok(g?.type === "arc", JSON.stringify(g));
+    const geoms = polylineToGeometry(onCircle(degs));
+    assert.equal(geoms.length, 1, JSON.stringify(geoms));
+    const [g] = geoms;
+    assert.ok(g.type === "arc", JSON.stringify(g));
     assert.ok(Math.abs(arcSweep(g) - Math.PI / 2) < 1e-9, `${degs}: sweep ${arcSweep(g)}`);
     assert.ok(Math.abs(Math.cos(g.startAngle) - 1) < 1e-9, `${degs}: start ${g.startAngle}`);
   }
@@ -119,6 +121,35 @@ test("열린 경계가 시계 방향으로 돌아도 같은 90° 호가 된다 (
 
 test("같은 호를 갔다 되돌아오는 열린 경계는 호로 보지 않는다", () => {
   // 0° → 90° 를 갔다가 45° 로 되돌아온다. 고치기 전에는 첫·끝 점만 보아 0°~45° 호가 됐다
-  const g = polylineToGeometry(onCircle([0, 15, 30, 45, 60, 75, 90, 75, 60, 45]));
-  assert.notEqual(g?.type, "arc", JSON.stringify(g));
+  const geoms = polylineToGeometry(onCircle([0, 15, 30, 45, 60, 75, 90, 75, 60, 45]));
+  assert.ok(geoms.every((g) => g.type !== "arc"), JSON.stringify(geoms));
+});
+
+test("메시 폴백 투영이 다각형 면 경계를 둥근 곡선이 아닌 선분들로 내고, 겹치는 변은 하나로 합친다", () => {
+  // 고치기 전에는 원이 아닌 경계가 모두 degree 없는 curve(3차 B-spline)로 가 모서리가 둥글게 그려졌고,
+  // curve 는 중복 제거도 되지 않아 큐브 윗면·아랫면이 겹친 곡선 두 개로 나왔다
+  const shapes = {
+    cube: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }],
+    triangle: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 8.660254 }],
+    hexagon: regular(6, 5, 5, 5),
+  };
+  for (const [name, poly] of Object.entries(shapes)) {
+    const geoms = projectModelEdgesToSketch(model(prism(poly, 10)), XY);
+    // 윗면·아랫면·옆면(옆에서 보면 선분)이 모두 같은 변으로 겹쳐, 다각형 변 수만큼의 선분만 남는다
+    assert.equal(geoms.length, poly.length, `${name}: ${JSON.stringify(geoms.map((g) => g.type))}`);
+    poly.forEach((a, i) => {
+      const b = poly[(i + 1) % poly.length];
+      const hit = geoms.some((g) => g.type === "line" && (
+        (Math.hypot(g.x1 - a.x, g.y1 - a.y) < 1e-9 && Math.hypot(g.x2 - b.x, g.y2 - b.y) < 1e-9) ||
+        (Math.hypot(g.x1 - b.x, g.y1 - b.y) < 1e-9 && Math.hypot(g.x2 - a.x, g.y2 - a.y) < 1e-9)));
+      assert.ok(hit, `${name}: 변 ${i}`);
+    });
+  }
+});
+
+test("메시 폴백 투영이 꼭짓점이 많은 곡선 경계(타원)는 지금처럼 곡선으로 둔다", () => {
+  // 26 등분한 원을 x 로 2 배 늘린 타원 면. 원도 다각형도 아니다
+  const ellipse = regular(26, 0, 0, 3).map((p) => ({ x: p.x * 2, y: p.y, z: 0 }));
+  const geoms = projectModelEdgesToSketch(model([fan(ellipse)]), XY);
+  assert.deepEqual(geoms.map((g) => g.type), ["curve"]);
 });
