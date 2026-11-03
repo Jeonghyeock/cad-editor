@@ -44,3 +44,20 @@ test("받아들여진 구속은 이력 한 칸이 되어 undo 로 빠진다", as
   assert.equal(store.constraintStore?.constraints.has("h"), false);
   assert.equal(store.geometries.has("L"), true);
 });
+
+test("이력 관리자가 연결되기 전에도 맞는 구속은 적용해 true, 상충 구속은 되돌려 false 를 돌려준다", async () => {
+  // 리뷰 반영 — 이력이 없을 때 tryExecute 가 늘 false 를 돌려 정상 치수도 과구속 안내로 갔다
+  const { store } = await createSketch();
+  store.globalHistory = null;
+  store.geometries.set("L", line("L", 0, 0, 10, 5));
+
+  assert.equal(store.tryApplyConstraint({ type: "line_length", id: "len10", line: { geomId: "L" }, value: 10 }), true);
+  assert.equal(store.constraintStore?.constraints.has("len10"), true);
+  const g = lineOf(store, "L");
+  assert.ok(Math.abs(Math.hypot(g.x2 - g.x1, g.y2 - g.y1) - 10) < 1e-6);
+
+  const before = round(lineOf(store, "L"));
+  assert.equal(store.tryApplyConstraint({ type: "line_length", id: "len20", line: { geomId: "L" }, value: 20 }), false);
+  assert.equal(store.constraintStore?.constraints.has("len20"), false);
+  assert.deepEqual(round(lineOf(store, "L")), before);
+});
