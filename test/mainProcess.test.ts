@@ -145,3 +145,18 @@ test("창이 파괴된 뒤 open-file·second-instance 가 오면 창을 새로 �
   windows[2].finishLoad();
   assert.deepEqual(openedPaths(windows[2]), [path.resolve("/docs/b.cad")]);
 });
+
+test("second-instance 의 상대 경로는 그 인스턴스의 작업 폴더 기준으로 풀어 보낸다", async () => {
+  // 고치기 전에는 상대 경로를 그대로 보내, main 프로세스의 작업 폴더 기준으로 찾다 열지 못했다
+  const { app, becomeReady } = loadMain();
+  await becomeReady();
+  windows[0].finishLoad();
+
+  const workingDirectory = path.resolve("/work/project");
+  app.emit("second-instance", {}, ["CAD Editor.exe", path.join("parts", "a.cad")], workingDirectory);
+  app.emit("second-instance", {}, ["CAD Editor.exe", path.resolve("/docs/b.cad")], workingDirectory);
+  assert.deepEqual(openedPaths(windows[0]), [
+    path.join(workingDirectory, "parts", "a.cad"),
+    path.resolve("/docs/b.cad"),
+  ]);
+});

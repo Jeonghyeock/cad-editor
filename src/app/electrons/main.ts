@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import electronSquirrelStartup from "electron-squirrel-startup";
 
 import { spawnSync } from "child_process";
+import path from "path";
 
 import { FileChannels } from "src/app/channels/fileChannels";
 import { MenuChannels } from "src/app/channels/menuChannels";
@@ -117,8 +118,10 @@ if (!gotTheLock) {
   /**
    * Windows/Linux: 앱이 이미 실행 중일 때 .cad 파일 더블클릭 시
    */
-  app.on("second-instance", (_event, commandLine) => {
-    openFileInAppWindow(commandLine.find((arg) => arg.endsWith(".cad")));
+  app.on("second-instance", (_event, commandLine, workingDirectory) => {
+    const filePath = commandLine.find((arg) => arg.endsWith(".cad"));
+    // 상대 경로는 두 번째 인스턴스를 띄운 작업 폴더 기준이다(이 프로세스의 작업 폴더와 다르다)
+    openFileInAppWindow(filePath && path.resolve(workingDirectory, filePath));
   });
 
   /**
