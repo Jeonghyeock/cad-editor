@@ -99,3 +99,31 @@ test("스스로 전체 스냅샷을 가진 드래그 명령에는 이력 쪽 스
   history.redo();
   assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 20, y2: 8 });
 });
+
+test("이력 엔트리에는 실행 전후로 바뀐 기하만 남긴다", async () => {
+  // 리뷰 반영 — 엔트리마다 스케치 전체를 두 벌 복제해 두어, 큰 스케치에서는 명령 하나마다 기하 수만큼 메모리가 늘었다
+  const { store, history } = await createSketch();
+  for (let i = 0; i < 20; i++) store.geometries.set(`F${i}`, line(`F${i}`, i, 100, i + 1, 120));
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  store.execute(new AddConstraintCommand({ type: "horizontal", id: "h", line: { geomId: "L" } }));
+
+  // 내부 스택을 들여다본다 — 수평 구속 엔트리에는 솔버가 옮긴 L 만 있어야 한다
+  type Entry = { before?: Map<string, unknown>; after?: Map<string, unknown> };
+  const stack = (history as unknown as { _stack: Entry[] })._stack;
+  const last = stack[stack.length - 1];
+  assert.deepEqual([...(last.before?.keys() ?? [])], ["L"]);
+  assert.deepEqual([...(last.after?.keys() ?? [])], ["L"]);
+  const add = stack[stack.length - 2];
+  assert.deepEqual([...(add.before?.keys() ?? [])], []);
+  assert.deepEqual([...(add.after?.keys() ?? [])], ["L"]);
+
+  // 되돌리기 결과는 그대로
+  history.undo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+  history.undo();
+  history.redo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+  history.redo();
+  const g = round(lineOf(store, "L"));
+  assert.equal(g.y2, g.y1);
+});
