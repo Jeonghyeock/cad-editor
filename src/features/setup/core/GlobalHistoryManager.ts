@@ -14,7 +14,7 @@ type GlobalEntry =
   | {
       source: "geometry";
       command: GeometryCommand;
-      /** 명령을 실행한 스케치의 planeKey. 이 스케치가 열려 있을 때만 undo/redo 한다 (열린 스케치가 없으면 기록하지 않음). */
+      /** 명령을 실행한 스케치 (`planeKey#세대`). 이 스케치가 열려 있을 때만 undo/redo 한다 (열린 스케치가 없으면 기록하지 않음). */
       sketchKey: string;
       /** 실행 직전 좌표 — undo 때 되돌린다. 드래그처럼 이미 바뀐 뒤 push 한 엔트리는 없다(명령이 직접 들고 있다). */
       before?: GeometrySnapshot;
@@ -80,8 +80,12 @@ export class GlobalHistoryManager {
   private _renderListeners = new Set<(event: HistoryEvent) => void>();
 
   private _geometryStore: SketchGeometryStore | null = null;
-  // 지금 열린 스케치의 planeKey (3D 모드면 null). 기하 store 는 열린 스케치 하나의 기하만 담는다.
+  // 지금 열린 스케치 (`planeKey#세대`, 3D 모드면 null). 기하 store 는 열린 스케치 하나의 기하만 담는다.
   private _activeSketchKey: string | null = null;
+  // 평면마다 스케치를 지운 횟수 — planeKey 만으로는 같은 평면에서 지우고 새로 만든 스케치를 같은 스케치로 본다(지운
+  // 스케치의 드래그 엔트리가 새 스케치를 지웠다). 스케치 키를 `planeKey#세대` 로 써서 둘을 가른다. 세대는 메모리에만
+  // 둔다 — 파일을 다시 열면 히스토리도 새로 시작한다.
+  private _sketchGenerations = new Map<string, number>();
 
   // --- 서브시스템 등록 ---
 
@@ -89,9 +93,22 @@ export class GlobalHistoryManager {
     this._geometryStore = store;
   }
 
-  /** 스케치 진입·종료 때 부른다 (enterSketchModeAtom / exitSketchModeAtom). 빈 키는 열린 스케치가 없는 것으로 본다. */
-  setActiveSketch(key: string | null): void {
-    this._activeSketchKey = key || null;
+  /**
+   * 스케치 진입·종료 때 부른다 (enterSketchModeAtom / exitSketchModeAtom). 빈 키는 열린 스케치가 없는 것으로 본다.
+   * 열린 스케치는 진입할 때의 세대로 정한다 — 열어 둔 채 그 스케치를 지워도 지금 store 의 엔트리는 그대로 이어진다.
+   */
+  setActiveSketch(planeKey: string | null): void {
+    this._activeSketchKey = planeKey ? `${planeKey}#${this._sketchGenerations.get(planeKey) ?? 0}` : null;
+  }
+
+  /** 스케치를 지울 때 (DeleteSketchCommand.execute) — 이 평면에 새로 여는 스케치는 다른 스케치로 본다. */
+  retireSketch(planeKey: string): void {
+    this._sketchGenerations.set(planeKey, (this._sketchGenerations.get(planeKey) ?? 0) + 1);
+  }
+
+  /** 스케치 삭제를 undo 할 때 (DeleteSketchCommand.undo) — 지웠던 스케치가 돌아오므로, 다시 열면 그 엔트리를 적용한다. */
+  reviveSketch(planeKey: string): void {
+    this._sketchGenerations.set(planeKey, Math.max(0, (this._sketchGenerations.get(planeKey) ?? 0) - 1));
   }
 
   // --- 기하 커맨드 직접 실행 (execute 호출 포함) ---
