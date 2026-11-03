@@ -46,6 +46,10 @@ const SNAP_PRIORITY: Record<SnapType, number> = {
   grid: 4,
 };
 
+// 공간 그리드에 기하 하나를 넣을 때 몸통·둘레 위에 찍는 표본 수의 상한. 크게 확대해 기하 하나가 이보다 많은 칸에
+// 걸치면 그리드에 넣지 않고 axis 처럼 늘 후보로 둔다 (드래그 중에는 프레임마다 그리드를 다시 짓기 때문).
+const MAX_GRID_SAMPLES = 512;
+
 export class SnapEngine {
   // 그리드 스냅 활성화 여부 (기본 true)
   gridSnapEnabled = true;
@@ -56,6 +60,8 @@ export class SnapEngine {
 
   // SpatialGrid 캐시 — 기하 변경 시에만 재빌드 (pointerMove 성능 최적화)
   private _cachedGrid: SpatialGrid<number> | null = null;
+  // 그리드에 넣기엔 너무 큰 기하 인덱스 — 질의 때 늘 후보에 더한다
+  private _cachedWideIndices: number[] = [];
   private _cachedGeometries: SerializedGeometry[] = [];
   private _cachedGeomVersion = -1;
   private _cachedSearchRadius = 0;
@@ -156,23 +162,14 @@ export class SnapEngine {
       allGeometries.length !== this._cachedGeometries.length ||
       Math.abs(searchRadius - this._cachedSearchRadius) > 1e-6
     ) {
-      const geomGrid = new SpatialGrid<number>(searchRadius * 2);
+      const cellSize = searchRadius * 2;
+      const geomGrid = new SpatialGrid<number>(cellSize);
+      const wideIndices: number[] = [];
       for (let i = 0; i < allGeometries.length; i++) {
-        const geom = allGeometries[i];
-        const aabb = this._getGeomAABB(geom);
-        if (aabb) {
-          const cx = (aabb.minX + aabb.maxX) / 2;
-          const cy = (aabb.minY + aabb.maxY) / 2;
-          geomGrid.insert(cx, cy, i);
-          geomGrid.insert(aabb.minX, aabb.minY, i);
-          geomGrid.insert(aabb.maxX, aabb.minY, i);
-          geomGrid.insert(aabb.minX, aabb.maxY, i);
-          geomGrid.insert(aabb.maxX, aabb.maxY, i);
-        } else {
-          geomGrid.insert(0, 0, i);
-        }
+        if (!this._insertIntoGrid(geomGrid, allGeometries[i], i, cellSize / 2)) wideIndices.push(i);
       }
       this._cachedGrid = geomGrid;
+      this._cachedWideIndices = wideIndices;
       this._cachedGeometries = allGeometries;
       this._cachedGeomVersion = geomVersion;
       this._cachedSearchRadius = searchRadius;
@@ -180,6 +177,7 @@ export class SnapEngine {
 
     // 근접 기하 인덱스 수집 (중복 제거)
     const nearbyIndices = new Set(this._cachedGrid.queryRadius(pos.x, pos.y, searchRadius));
+    for (const i of this._cachedWideIndices) nearbyIndices.add(i);
     // axis 는 무한선이라 grid cell 에 국한되지 않음 — 항상 candidate 에 포함.
     for (let i = 0; i < allGeometries.length; i++) {
       if (allGeometries[i].type === "axis") nearbyIndices.add(i);
@@ -616,39 +614,59 @@ export class SnapEngine {
     };
   }
 
-  // 기하 AABB 계산 (SpatialGrid용)
-  private _getGeomAABB(geom: SerializedGeometry): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  // 기하를 그것이 지나는 SpatialGrid 칸마다 넣는다. 이산 후보점(끝점·중점·중심·사분점)을 넣고, 선·원·호·타원은
+  // 몸통·둘레 위를 step 간격으로 찍어 넣는다. AABB 중심·모서리만 넣으면 긴 선의 몸통이나 큰 원의 둘레 근처에서
+  // 기하가 후보에 오르지 않아 수선의 발·교차점·nearest·접선 스냅이 빠졌다.
+  // step 을 칸 크기의 절반(= searchRadius) 으로 두면, 커서에서 snapRadius 안을 지나는 기하는 커서에서
+  // snapRadius + step/2 (< searchRadius) 안에 표본이 있어 queryRadius 가 반드시 그 칸을 본다.
+  // 표본이 MAX_GRID_SAMPLES 를 넘으면 넣지 않고 false — 호출측이 늘 후보로 둔다.
+  private _insertIntoGrid(grid: SpatialGrid<number>, geom: SerializedGeometry, index: number, step: number): boolean {
+    let length = 0;
+    let at: ((t: number) => { x: number; y: number }) | null = null;
     switch (geom.type) {
-      case "point": return { minX: geom.x, minY: geom.y, maxX: geom.x, maxY: geom.y };
-      case "line": return {
-        minX: Math.min(geom.x1, geom.x2), minY: Math.min(geom.y1, geom.y2),
-        maxX: Math.max(geom.x1, geom.x2), maxY: Math.max(geom.y1, geom.y2),
-      };
-      case "circle": return {
-        minX: geom.cx - geom.r, minY: geom.cy - geom.r,
-        maxX: geom.cx + geom.r, maxY: geom.cy + geom.r,
-      };
-      case "arc": return {
-        minX: geom.cx - geom.r, minY: geom.cy - geom.r,
-        maxX: geom.cx + geom.r, maxY: geom.cy + geom.r,
-      };
+      case "line":
+        length = Math.hypot(geom.x2 - geom.x1, geom.y2 - geom.y1);
+        at = (t) => ({ x: geom.x1 + (geom.x2 - geom.x1) * t, y: geom.y1 + (geom.y2 - geom.y1) * t });
+        break;
+      case "circle":
+        length = 2 * Math.PI * geom.r;
+        at = (t) => ({ x: geom.cx + geom.r * Math.cos(2 * Math.PI * t), y: geom.cy + geom.r * Math.sin(2 * Math.PI * t) });
+        break;
+      case "arc": {
+        let sweep = geom.endAngle - geom.startAngle;
+        if (sweep <= 0) sweep += Math.PI * 2;
+        length = sweep * geom.r;
+        at = (t) => {
+          const a = geom.startAngle + sweep * t;
+          return { x: geom.cx + geom.r * Math.cos(a), y: geom.cy + geom.r * Math.sin(a) };
+        };
+        break;
+      }
       case "ellipse": {
-        const mr = Math.max(geom.rx, geom.ry);
-        return { minX: geom.cx - mr, minY: geom.cy - mr, maxX: geom.cx + mr, maxY: geom.cy + mr };
+        // 매개변수 간격 × 긴 반지름이 둘레 위 간격의 상한이라 긴 반지름 원의 둘레로 표본 수를 정한다
+        length = 2 * Math.PI * Math.max(geom.rx, geom.ry);
+        const cosR = Math.cos(geom.rotation);
+        const sinR = Math.sin(geom.rotation);
+        at = (t) => {
+          const ex = geom.rx * Math.cos(2 * Math.PI * t);
+          const ey = geom.ry * Math.sin(2 * Math.PI * t);
+          return { x: geom.cx + ex * cosR - ey * sinR, y: geom.cy + ex * sinR + ey * cosR };
+        };
+        break;
       }
-      case "curve": {
-        if (geom.points.length === 0) return null;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const p of geom.points) {
-          if (p.x < minX) minX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y > maxY) maxY = p.y;
-        }
-        return { minX, minY, maxX, maxY };
-      }
-      default: return null;
     }
+
+    const n = at ? Math.ceil(length / step) : 0;
+    if (n > MAX_GRID_SAMPLES) return false;
+
+    for (const c of this._getSnapCandidates(geom, geom.id)) grid.insert(c.x, c.y, index);
+    if (at) {
+      for (let k = 0; k <= n; k++) {
+        const p = at(n > 0 ? k / n : 0);
+        grid.insert(p.x, p.y, index);
+      }
+    }
+    return true;
   }
 
   private _getSnapCandidates(geom: SerializedGeometry, geomId: string): NonNullable<SnapResult>[] {
