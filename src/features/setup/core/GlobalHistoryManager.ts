@@ -200,11 +200,19 @@ export class GlobalHistoryManager {
     return entry.source === "geometry" && (!entry.sketchKey || entry.sketchKey !== this._activeSketchKey);
   }
 
-  /** Undo — 엔트리 소스 반환 ("geometry" | "model", 빈 스택이거나 다른 스케치 엔트리에서 멈추면 null) */
+  /** 이 엔트리 앞에서 멈춰야 하면 true — 다른 스케치의 기하 엔트리, 또는 지금은 안 된다고 하는 모델 커맨드 */
+  private _isBlocked(entry: GlobalEntry, direction: "undo" | "redo"): boolean {
+    if (this._isOtherSketch(entry)) return true;
+    if (entry.source !== "model") return false;
+    const allowed = direction === "undo" ? entry.command.canUndo?.() : entry.command.canRedo?.();
+    return allowed === false;
+  }
+
+  /** Undo — 엔트리 소스 반환 ("geometry" | "model", 빈 스택이거나 막힌 엔트리(_isBlocked)에서 멈추면 null) */
   undo(): "geometry" | "model" | null {
     if (this._index < 0) return null;
     const entry = this._stack[this._index];
-    if (this._isOtherSketch(entry)) return null;
+    if (this._isBlocked(entry, "undo")) return null;
     try {
       if (entry.source === "geometry") {
         const store = this._geometryStore;
@@ -230,11 +238,11 @@ export class GlobalHistoryManager {
     return entry.source;
   }
 
-  /** Redo — 엔트리 소스 반환 (다른 스케치 엔트리에서 멈추면 null) */
+  /** Redo — 엔트리 소스 반환 (막힌 엔트리에서 멈추면 null) */
   redo(): "geometry" | "model" | null {
     if (this._index >= this._stack.length - 1) return null;
     const entry = this._stack[this._index + 1];
-    if (this._isOtherSketch(entry)) return null;
+    if (this._isBlocked(entry, "redo")) return null;
     try {
       if (entry.source === "geometry") {
         const store = this._geometryStore;
@@ -258,11 +266,11 @@ export class GlobalHistoryManager {
 
   // 막힌 엔트리 앞이면 false — 툴바 버튼이 켜진 채 눌러도 아무 일이 없지 않게.
   get canUndo(): boolean {
-    return this._index >= 0 && !this._isOtherSketch(this._stack[this._index]);
+    return this._index >= 0 && !this._isBlocked(this._stack[this._index], "undo");
   }
 
   get canRedo(): boolean {
-    return this._index < this._stack.length - 1 && !this._isOtherSketch(this._stack[this._index + 1]);
+    return this._index < this._stack.length - 1 && !this._isBlocked(this._stack[this._index + 1], "redo");
   }
 
   // --- 렌더 리스너 (atom 동기화용) ---

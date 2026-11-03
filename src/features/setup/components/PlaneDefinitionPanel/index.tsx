@@ -5,7 +5,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useState } from "react";
 
 import { useHistoricalAtom } from "../../hooks/useHistoricalAtom";
-import { setupRefPlaneModeAtom, setupRefPlanePreviewAtom, setupReferencePlanesAtom, setupViewModeAtom } from "../../Setup.store";
+import { canSetReferencePlanes, setupRefPlaneModeAtom, setupRefPlanePreviewAtom, setupReferencePlanesAtom, setupViewModeAtom } from "../../Setup.store";
 import type { ReferencePlane, SketchPlane } from "../../Setup.type";
 import { generateProjectionId } from "../../utils/idGenerator";
 
@@ -13,8 +13,9 @@ import FloatingPanel from "../FloatingPanel";
 
 const PlaneDefinitionPanel = memo(() => {
   const [refPlaneMode, setRefPlaneMode] = useAtom(setupRefPlaneModeAtom);
-  // 평면 생성은 통합 history 에 기록 — Ctrl+Z 가 직전의 다른 작업이 아니라 이 평면을 되돌리게.
-  const [, setReferencePlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes");
+  // 평면 생성은 통합 history 에 기록 — Ctrl+Z 가 직전의 다른 작업이 아니라 이 평면을 되돌리게. 그 평면을 스케치·연산이
+  // 쓰는 동안에는 생성 undo(평면 삭제)를 막는다 (canSetReferencePlanes).
+  const [, setReferencePlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes", canSetReferencePlanes);
   const setPreview = useSetAtom(setupRefPlanePreviewAtom);
   const viewMode = useAtomValue(setupViewModeAtom);
 

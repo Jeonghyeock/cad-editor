@@ -13,6 +13,7 @@ import { fileIdAtom } from "src/shared/stores/File.store";
 import { useHistoricalAtom } from "../../hooks/useHistoricalAtom";
 import { ORIGIN_PLANE_KEYS } from "../../rendering/SketchPlaneManager";
 import {
+  canSetReferencePlanes,
   setupActiveSketchNameAtom,
   setupConstraintsAtom,
   setupDeletedBodiesAtom,
@@ -221,8 +222,9 @@ const SpecTree = ({
 }: SpecTreeProps) => {
   const models = useAtomValue(setupModelsAtom);
   const deletedBodies = useAtomValue(setupDeletedBodiesAtom);
-  // 참조 평면 삭제도 통합 history 에 기록 — Ctrl+Z 로 지운 평면이 돌아오게.
-  const [referencePlanes, setReferencePlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes");
+  // 참조 평면 삭제도 통합 history 에 기록 — Ctrl+Z 로 지운 평면이 돌아오게. 그 평면을 스케치·연산이 쓰는 동안에는
+  // 평면을 다시 지우는 redo 를 막는다 (canSetReferencePlanes).
+  const [referencePlanes, setReferencePlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes", canSetReferencePlanes);
   const sketchPending = useAtomValue(setupSketchPlaneSelectionPendingAtom);
   const operations = useAtomValue(setupOperationsAtom);
   const _constraints = useAtomValue(setupConstraintsAtom);
