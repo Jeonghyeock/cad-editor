@@ -9,9 +9,13 @@ import type { OperationTreeEntry, PadPocketOperation, RevolveOperation, Serializ
 
 import type { GlobalCommand } from "../GlobalCommand";
 
+import { SceneTaskQueue } from "./SceneTaskQueue";
+
 export class DeletePadCommand implements GlobalCommand {
   readonly label = "Delete Pad/Pocket";
   private _savedEntry: OperationTreeEntry | null = null;
+  /** undo 의 솔리드 복원(비동기)과 redo 의 제거를 차례로 — 복원 결과 전에 redo 해도 유령 솔리드가 남지 않게. */
+  private _sceneTasks = new SceneTaskQueue();
   /** execute 시점에 hiddenShapeIds 에서 실제로 제거한 id 들 — undo 시 그것만 다시 추가. */
   private _removedHiddenIds = new Set<string>();
 
@@ -31,10 +35,7 @@ export class DeletePadCommand implements GlobalCommand {
       return prev.filter((e) => e.operation.id !== this._operationId);
     });
 
-    const scene = this._getScene();
-    if (scene) {
-      scene.removeExtrudedSolid(this._operationId);
-    }
+    this._sceneTasks.run(() => this._getScene()?.removeExtrudedSolid(this._operationId));
 
     // auto-show — source shape 의 hidden 상태 해제. operation.profileIds 중 현재 hidden 인 것만
     // 제거 (manual hide 후 다시 show 한 케이스는 영향 없음). 백업해서 undo 시 복원.
@@ -58,19 +59,18 @@ export class DeletePadCommand implements GlobalCommand {
 
     this._setOperations((prev) => [...prev, this._savedEntry!]);
 
-    const scene = this._getScene();
-    if (scene) {
-      const op = this._savedEntry.operation;
+    const op = this._savedEntry.operation;
+    this._sceneTasks.run(() => {
+      const scene = this._getScene();
+      if (!scene) return;
       switch (op.type) {
         case "pad":
         case "pocket":
-          scene.addExtrudedSolid(op as PadPocketOperation, this._geometries);
-          break;
+          return scene.addExtrudedSolid(op as PadPocketOperation, this._geometries);
         case "revolve":
-          scene.addRevolvedSolid(op as RevolveOperation, this._geometries);
-          break;
+          return scene.addRevolvedSolid(op as RevolveOperation, this._geometries);
       }
-    }
+    });
 
     // execute 가 제거했던 id 들만 다시 hidden 으로.
     if (this._removedHiddenIds.size > 0) {

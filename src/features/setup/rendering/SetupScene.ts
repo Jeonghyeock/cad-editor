@@ -770,11 +770,12 @@ export default class SetupScene {
 
   // --- SolidOperationManager 위임 ---
 
+  // 비동기(native IPC 대기) — 끝나는 시점을 커맨드가 기다릴 수 있게 Promise 를 돌려준다.
   addExtrudedSolid(
     operation: PadPocketOperation,
     geometries: Map<string, SerializedGeometry>,
-  ): void {
-    this._solidOperationManager.addExtrudedSolid(operation, geometries);
+  ): Promise<void> {
+    return this._solidOperationManager.addExtrudedSolid(operation, geometries);
   }
 
   removeExtrudedSolid(operationId: string): void {
@@ -812,8 +813,8 @@ export default class SetupScene {
   addRevolvedSolid(
     operation: RevolveOperation,
     geometries: Map<string, SerializedGeometry>,
-  ): void {
-    this._solidOperationManager.addRevolvedSolid(operation, geometries);
+  ): Promise<void> {
+    return this._solidOperationManager.addRevolvedSolid(operation, geometries);
   }
 
   showRevolvePreview(
