@@ -236,11 +236,9 @@ class FileIpcUtil {
         filePath = result.filePaths[0];
       }
 
-      const rawContent = await fs.promises.readFile(filePath, "utf-8");
-      const fileContent: FileContent = JSON.parse(rawContent);
-
       // 이미 열려있는 파일인 경우. 파일 안의 fileId 가 아니라 경로로 판정한다 — fileId 로 보면 탐색기 복사본이나
       // fileId 가 없는 파일을 이미 열린 다른 파일로 오인해, 새 탭 없이 그 탭으로 바꾸기만 했다.
+      // 읽기 전에 판정해, 쓰는 중이라 깨진 파일도 그 탭으로 바꾸고 큰 파일을 헛읽지 않는다.
       const openFilePath = this.openFilePathList.find(
         (item) => item.path && isSameFilePath(item.path, filePath),
       );
@@ -250,6 +248,9 @@ class FileIpcUtil {
 
         return true;
       }
+
+      const rawContent = await fs.promises.readFile(filePath, "utf-8");
+      const fileContent: FileContent = JSON.parse(rawContent);
 
       // 같은 fileId 로 두 탭이 열리면 renderer 가 fileId 별로 둔 데이터가 섞인다. 파일 안의 fileId 가 없거나
       // 이미 열린 다른 파일과 겹치면(복사본, 이전 버전에서 Save As 한 파일) 새로 발급한다.
