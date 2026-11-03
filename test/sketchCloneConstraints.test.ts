@@ -35,6 +35,7 @@ async function createSketch() {
   store.solver = solver;
   const history = new GlobalHistoryManager();
   history.setGeometryStore(store);
+  history.setActiveSketch("XY"); // 이력은 열린 스케치의 명령만 기록한다
   store.globalHistory = history;
   return { store, constraints };
 }

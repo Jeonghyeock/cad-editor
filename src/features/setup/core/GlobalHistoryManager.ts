@@ -14,8 +14,8 @@ type GlobalEntry =
   | {
       source: "geometry";
       command: GeometryCommand;
-      /** 명령을 실행한 스케치의 planeKey (스케치 밖에서 실행했으면 null). 이 스케치가 열려 있을 때만 undo/redo 한다. */
-      sketchKey: string | null;
+      /** 명령을 실행한 스케치의 planeKey. 이 스케치가 열려 있을 때만 undo/redo 한다 (열린 스케치가 없으면 기록하지 않음). */
+      sketchKey: string;
       /** 실행 직전 좌표 — undo 때 되돌린다. 드래그처럼 이미 바뀐 뒤 push 한 엔트리는 없다(명령이 직접 들고 있다). */
       before?: GeometrySnapshot;
       /** 실행·솔브 직후 좌표 — redo 때 되돌린다. */
@@ -41,6 +41,34 @@ function restoreGeometries(store: SketchGeometryStore, snapshot: GeometrySnapsho
 }
 
 /**
+ * 기하 명령을 실행·솔브하고 accept 로 받아들일지 정한다 (히스토리 기록은 하지 않음). 거부하면 명령을 되돌리고 좌표도
+ * 실행 전으로 돌린다. 반환: 받아들였으면 실행 전·후 좌표 스냅샷, 거부했으면 null.
+ */
+export function applyGeometryCommand(
+  command: GeometryCommand,
+  store: SketchGeometryStore,
+  accept: (store: SketchGeometryStore) => boolean,
+): { before: GeometrySnapshot; after: GeometrySnapshot } | null {
+  const before = snapshotGeometries(store);
+  command.execute(store);
+  store.solveConstraints();
+  if (!accept(store)) {
+    command.undo(store);
+    restoreGeometries(store, before);
+    store.solveConstraints();
+    store.recomputeFaces();
+    store.markGeometryChanged();
+    store.requestRender();
+    return null;
+  }
+  const after = snapshotGeometries(store);
+  store.recomputeFaces();
+  store.markGeometryChanged();
+  store.requestRender();
+  return { before, after };
+}
+
+/**
  * Listener event 종류. caller 는 종류별로 다른 처리 가능 — 예) "clear" 는 시스템 reset
  * (파일 전환 등) 이지 사용자 의도가 아니므로 flushInputSync 같은 sync 트리거는 skip.
  */
@@ -61,9 +89,9 @@ export class GlobalHistoryManager {
     this._geometryStore = store;
   }
 
-  /** 스케치 진입·종료 때 부른다 (enterSketchModeAtom / exitSketchModeAtom). */
+  /** 스케치 진입·종료 때 부른다 (enterSketchModeAtom / exitSketchModeAtom). 빈 키는 열린 스케치가 없는 것으로 본다. */
   setActiveSketch(key: string | null): void {
-    this._activeSketchKey = key;
+    this._activeSketchKey = key || null;
   }
 
   // --- 기하 커맨드 직접 실행 (execute 호출 포함) ---
@@ -83,24 +111,13 @@ export class GlobalHistoryManager {
     accept: (store: SketchGeometryStore) => boolean,
   ): boolean {
     if (command.isEmpty?.()) return true;
-    const before = snapshotGeometries(store);
-    command.execute(store);
-    store.solveConstraints();
-    if (!accept(store)) {
-      command.undo(store);
-      restoreGeometries(store, before);
-      store.solveConstraints();
-      store.recomputeFaces();
-      store.markGeometryChanged();
-      store.requestRender();
-      return false;
-    }
+    const applied = applyGeometryCommand(command, store, accept);
+    if (!applied) return false;
+    // 열린 스케치가 없으면(3D 모드 등) 기록하지 않는다 — 그 엔트리를 적용할 스케치가 없어, 기록하면 그 자리에서
+    // 이력이 영영 막히거나 엉뚱한 상태에 적용된다.
+    if (!this._activeSketchKey) return true;
     this._truncateFuture();
-    const after = snapshotGeometries(store);
-    store.recomputeFaces();
-    store.markGeometryChanged();
-    store.requestRender();
-    this._stack.push({ source: "geometry", command, sketchKey: this._activeSketchKey, before, after });
+    this._stack.push({ source: "geometry", command, sketchKey: this._activeSketchKey, ...applied });
     this._index++;
     this._notifyListeners("push");
     return true;
@@ -110,12 +127,13 @@ export class GlobalHistoryManager {
 
   pushGeometrySnapshot(command: GeometryCommand, store: SketchGeometryStore): void {
     if (command.isEmpty?.()) return;
-    this._truncateFuture();
     // 실행 전 좌표는 이미 지나갔다(명령이 직접 들고 있음). redo 때 쓸 지금 좌표만 남긴다.
     const after = snapshotGeometries(store);
     store.recomputeFaces();
     store.markGeometryChanged();
     store.requestRender();
+    if (!this._activeSketchKey) return; // 열린 스케치가 없으면 기록하지 않음 (tryExecuteGeometryCommand 와 같은 이유)
+    this._truncateFuture();
     this._stack.push({ source: "geometry", command, sketchKey: this._activeSketchKey, after });
     this._index++;
     this._notifyListeners("push");
@@ -150,11 +168,13 @@ export class GlobalHistoryManager {
   // - 그대로 적용하면 다른 평면의 기하가 지금 스케치에 들어가 저장되고, DragSnapshotCommand 는 지금 스케치를 통째로 지운다.
   // - 건너뛰면 인덱스 아래에 적용된 엔트리와 되돌린 엔트리가 섞여, 나중에 그 스케치에서 redo 할 때 순서가 어긋난다.
   // 그 스케치를 다시 열면 멈춘 자리부터 이어서 undo/redo 한다(자동으로 스케치를 다시 열지는 않는다).
+  // 열린 스케치가 없을 때(키 null·"") 실행한 기하 명령은 기록하지 않는다 — 적용할 스케치가 없는 엔트리를 만들지 않는다.
   // canUndo/canRedo 는 스택 위치만 본다 — 막힌 동안에도 툴바 버튼은 켜져 있고, 눌러도 아무 일도 일어나지 않는다.
 
   /** 기하 엔트리가 지금 열린 스케치의 것이 아니면 true */
   private _isOtherSketch(entry: GlobalEntry): boolean {
-    return entry.source === "geometry" && entry.sketchKey !== this._activeSketchKey;
+    // 키가 비어 있는 엔트리는 어떤 상태와도 같은 스케치로 보지 않는다 (3D 모드의 null 과도 맞추지 않음).
+    return entry.source === "geometry" && (!entry.sketchKey || entry.sketchKey !== this._activeSketchKey);
   }
 
   /** Undo — 엔트리 소스 반환 ("geometry" | "model", 빈 스택이거나 다른 스케치 엔트리에서 멈추면 null) */
