@@ -191,8 +191,6 @@ export const enterSketchModeAtom = atom(
       faceSource?: { modelId: string; faceGroupId: number };
     },
   ) => {
-    // 이 파일의 히스토리에 지금 열린 스케치를 알림 — 다른 스케치의 기하 엔트리는 undo/redo 하지 않는다.
-    get(setupAtom).globalHistory.setActiveSketch(info.planeKey);
     set(setupAtom, (p) => ({
       ...p,
       viewState: {
@@ -207,12 +205,15 @@ export const enterSketchModeAtom = atom(
           : {}),
       },
     }));
+    // 이 파일의 히스토리에 지금 열린 스케치를 알림 — 다른 스케치의 기하 엔트리는 undo/redo 하지 않는다.
+    // viewState 를 쓴 뒤에 알린다: 알림('sketch' 이벤트) 때 다시 계산하는 canUndo/canRedo 가 viewState 를 읽는다
+    // (참조 평면 가드 canSetReferencePlanes).
+    get(setupAtom).globalHistory.setActiveSketch(info.planeKey);
   },
 );
 
 /** Sketch 모드 종료 — mode="3d" + sketch 관련 key 삭제 (undefined 대신 key 자체 제거). */
 export const exitSketchModeAtom = atom(null, (get, set) => {
-  get(setupAtom).globalHistory.setActiveSketch(null);
   set(setupAtom, (p) => {
     // sketchPlaneKey / sketchPlaneName / sketchFaceSource 를 undefined 로 set 하면 viewState
     // 자체에 key 가 추가됨 (값은 undefined). originData 와 shape mismatch → isModified 오탐.
@@ -228,6 +229,8 @@ export const exitSketchModeAtom = atom(null, (get, set) => {
       viewState: { ...restView, mode: "3d" },
     };
   });
+  // enterSketchModeAtom 과 같은 순서 — viewState 를 쓴 뒤 히스토리에 알린다.
+  get(setupAtom).globalHistory.setActiveSketch(null);
 });
 
 // 참조 프로파일 목록
