@@ -71,3 +71,31 @@ test("마우스로 찍을 때는 여전히 H/V 스냅이 걸린다", async () =>
   assert.ok(line && Math.abs(line.y2) < 1e-9);
   assert.ok(constraintTypes(store).includes("horizontal"));
 });
+
+test("입력값이 정확히 축과 나란한 선이면 H/V 구속을 붙인다(값은 그대로)", async () => {
+  // 스냅을 건너뛰게 고친 뒤에는 A=0 처럼 정확히 수평인 입력에도 horizontal 이 빠졌었다
+  const cases: [{ L: number; A: number } | { H: number; V: number }, "horizontal" | "vertical"][] = [
+    [{ L: 100, A: 0 }, "horizontal"], [{ L: 100, A: 90 }, "vertical"],
+    [{ L: 100, A: 180 }, "horizontal"], [{ L: 100, A: 270 }, "vertical"], [{ L: 100, A: -90 }, "vertical"],
+    [{ H: 100, V: 0 }, "horizontal"], [{ H: 0, V: 50 }, "vertical"],
+  ];
+  for (const [values, expected] of cases) {
+    const store = await sketch();
+    const line = await drawWithInput(store, values);
+    const types = constraintTypes(store);
+    assert.deepEqual(types, [expected], `${JSON.stringify(values)} → ${types.join(",")}`);
+    const length = "L" in values ? values.L : Math.hypot(values.H, values.V);
+    assert.ok(Math.abs(Math.hypot(line.x2 - line.x1, line.y2 - line.y1) - length) < 1e-9);
+  }
+});
+
+test("자동 구속을 끄면 축과 나란한 입력에도 H/V 구속을 붙이지 않는다", async () => {
+  const { LineDrawTool } = await import("src/features/setup/sketch/tools/LineDrawTool");
+  const store = await sketch();
+  const tool = new LineDrawTool();
+  tool.autoGeoConstraints = false;
+  tool.applyInputValues(store, { H: 0, V: 0 });
+  tool.applyInputValues(store, { L: 100, A: 0 });
+  assert.equal(userGeometries(store, "line").length, 2);
+  assert.deepEqual(constraintTypes(store), []);
+});
