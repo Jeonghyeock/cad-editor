@@ -53,8 +53,11 @@ function adaptNativeEdge(raw: NativeRawEdge): BRepEdgeCurve {
     const ex = last.x - c.x, ey = last.y - c.y, ez = last.z - c.z;
     let sweep = Math.atan2(ex * yDir.x + ey * yDir.y + ez * yDir.z, ex * xDir.x + ey * xDir.y + ez * xDir.z);
     if (sweep <= 0) sweep += Math.PI * 2;
-    // 끝 점이 첫 점으로 돌아오면 구멍·보스 같은 전체 원 (각이 0 근처라 위 계산으로는 0 이나 2π 로 갈린다)
-    const closed = Math.hypot(last.x - first.x, last.y - first.y, last.z - first.z) < raw.hintRadius * 1e-6;
+    // 끝 점이 첫 점으로 돌아오면 구멍·보스 같은 전체 원 (각이 0 근처라 위 계산으로는 0 이나 2π 로 갈린다).
+    // 2π 에 아주 가까운 것도 전체 원으로 본다. 투영(BRepEdgeProjector)이 전체 원으로 보는 기준(2π − 0.01)과 맞춰,
+    // 와이어프레임에만 작은 틈이 남지 않게 한다
+    const closed = Math.hypot(last.x - first.x, last.y - first.y, last.z - first.z) < raw.hintRadius * 1e-6
+      || sweep >= Math.PI * 2 - 0.01;
 
     return {
       type: "circle",

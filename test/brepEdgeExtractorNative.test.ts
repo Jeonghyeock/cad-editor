@@ -72,3 +72,12 @@ test("네이티브 엣지 추출이 구멍 같은 닫힌 원은 그대로 전체
   assert.ok(g.type === "circle");
   assert.ok(Math.abs(g.cx - 5) < 1e-9 && Math.abs(g.cy - 5) < 1e-9 && g.r === 2);
 });
+
+test("네이티브 엣지 추출이 2π 보다 아주 조금 짧은 주기 엣지도 닫힌 전체 원으로 둔다", async () => {
+  // 첫 점과 끝 점이 r·1e-6 보다 조금 더 떨어지면, 고치기 전에는 0.001 rad 틈이 있는 호로 남아 와이어프레임에 틈이 보였다.
+  // 투영(BRepEdgeProjector)이 전체 원으로 보는 기준(2π − 0.01)과 맞춘다
+  const nearlyClosed: Circle = { ...FILLET_ARCS[0], startParam: 0, endParam: Math.PI * 2 - 0.001 };
+  const [edge] = await extract([nearlyClosed]);
+  assert.equal(edge.type, "circle");
+  assert.equal(edge.endParam - edge.startParam, Math.PI * 2);
+});
