@@ -262,6 +262,9 @@ class FileIpcUtil {
       const targetIndex = this.openFilePathList.findIndex(
         (filePath) => filePath.fileId === fileId,
       );
+      // 이미 목록에 없는 파일은 닫힌 것으로 본다. false 를 돌려주면 renderer 가 창 닫기를 멈춰,
+      // 이런 파일 하나 때문에 창을 영영 닫지 못하게 된다.
+      if (targetIndex === -1) return true;
 
       // 수정된 내용이 없는 경우 닫기
       if (!isModified) {
@@ -293,18 +296,23 @@ class FileIpcUtil {
 
       if (this.isMessageBoxShown) throw new Error("message box shown");
       this.isMessageBoxShown = true;
-      const fileName = this.openFilePathList[targetIndex].fileName;
-      const messageBox = await dialog.showMessageBox(window, {
-        type: "warning",
-        buttons: ["Save", "Don't Save", "Cancel"],
-        defaultId: 0,
-        cancelId: 2,
-        title: "CAD Editor",
-        noLink: true,
-        message: `Changes detected in \n"${fileName}"\n Save before you continue?`,
-        detail: `Your changes will be lost if you don't save them.`,
-      });
-      this.isMessageBoxShown = false;
+      let messageBox: Electron.MessageBoxReturnValue;
+      try {
+        const fileName = this.openFilePathList[targetIndex].fileName;
+        messageBox = await dialog.showMessageBox(window, {
+          type: "warning",
+          buttons: ["Save", "Don't Save", "Cancel"],
+          defaultId: 0,
+          cancelId: 2,
+          title: "CAD Editor",
+          noLink: true,
+          message: `Changes detected in \n"${fileName}"\n Save before you continue?`,
+          detail: `Your changes will be lost if you don't save them.`,
+        });
+      } finally {
+        // 확인창을 띄우다 예외가 나도 풀어 둔다. 남아 있으면 이후의 닫기가 모두 false 가 돼 창을 닫을 수 없다.
+        this.isMessageBoxShown = false;
+      }
 
       // Cancel
       if (messageBox.response === 2) throw new Error("canceled");
