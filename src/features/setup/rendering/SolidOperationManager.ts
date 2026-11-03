@@ -1129,13 +1129,15 @@ export class SolidOperationManager implements EntityPicker {
     });
   }
 
-  // 스케치 변경 후 해당 planeKey를 참조하는 솔리드 operations를 순서대로 rebuild
+  // 스케치 변경 후 해당 planeKey를 참조하는 솔리드 operations를 순서대로 rebuild.
+  // 반환한 Promise 는 이 rebuild 의 add 가 모두 끝나면 풀린다 — SetupScene 이 명령과 같은 씬 큐로 보내 기다린다.
   rebuildOperationsForSketch(
     sketchPlaneKey: string,
     operations: OperationTreeEntry[],
-  ): void {
+  ): Promise<void> {
     const sketch = this._getSavedSketch(sketchPlaneKey);
-    if (!sketch) return;
+    if (!sketch) return Promise.resolve();
+    const pending: Promise<void>[] = [];
 
     // 최신 스케치 geometry → Map 구성
     const geoMap = new Map<string, SerializedGeometry>();
@@ -1157,7 +1159,7 @@ export class SolidOperationManager implements EntityPicker {
             this.removeExtrudedSolid(remappedOp.id);
             this.restoreSourceVisibility(remappedOp.targetOperationId);
           }
-          this.addExtrudedSolid(remappedOp, geoMap);
+          pending.push(this.addExtrudedSolid(remappedOp, geoMap));
           if (remappedProfileIds !== op.profileIds) {
             (op as PadPocketOperation).profileIds = remappedProfileIds;
           }
@@ -1166,13 +1168,14 @@ export class SolidOperationManager implements EntityPicker {
           const remappedOp = remappedProfileIds !== op.profileIds
             ? { ...op, profileIds: remappedProfileIds }
             : op;
-          this.addRevolvedSolid(remappedOp, geoMap);
+          pending.push(this.addRevolvedSolid(remappedOp, geoMap));
           if (remappedProfileIds !== op.profileIds) {
             (op as RevolveOperation).profileIds = remappedProfileIds;
           }
         }
       }
     }
+    return Promise.all(pending).then(() => {});
   }
 
   /** 파일 전환 시 모든 솔리드 제거 (인스턴스 재사용) */

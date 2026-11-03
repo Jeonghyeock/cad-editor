@@ -1,3 +1,5 @@
+import "./helpers/assetStub";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -193,4 +195,28 @@ test("서로 다른 Pad 둘을 결과 전에 잇달아 만들면 둘 다 남는�
   await scene.finishAll();
 
   assert.deepEqual([...scene.meshes].map((m) => m.split("#")[0]).sort(), ["p1", "p2"]);
+});
+
+// 리뷰 반영(2차) — 스케치를 닫을 때 도는 rebuildOperationsForSketch 가 씬 공유 큐를 거치지 않고 add 를 기다리지 않아,
+// 같은 op 의 add 가 명령의 add 와 겹쳐 고아 메시가 남았다.
+
+test("Pad 생성 add 가 끝나기 전에 스케치를 닫아 rebuild 가 돌아도 메시가 하나만 남는다", async () => {
+  // SetupScene 은 불러올 때 native IPC 모듈이 window.electron 을 읽는다 — 빈 window 로 대신한다
+  (globalThis as Record<string, unknown>).window ??= {};
+  const { default: RealSetupScene } = await import("src/features/setup/rendering/SetupScene");
+  const { scene, deps } = setup();
+  const pad: PadPocketOperation = { ...pocket, type: "pad", targetOperationId: undefined };
+  // SolidOperationManager.rebuildOperationsForSketch 처럼 스케치의 op 마다 add 를 다시 부른다
+  Object.assign(scene, {
+    _solidOperationManager: {
+      rebuildOperationsForSketch: (_key: string, ops: OperationTreeEntry[]) =>
+        Promise.all(ops.map((e) => scene.addExtrudedSolid(e.operation as PadPocketOperation))).then(() => {}),
+    },
+  });
+
+  new CreatePadCommand(pad, "Sketch 1", new Map(), deps.setOperations, deps.getScene, deps.setHidden, deps.getHidden).execute();
+  RealSetupScene.prototype.rebuildOperationsForSketch.call(scene, "XY", [{ operation: pad, sketchPlaneName: "Sketch 1" }]);
+  await scene.finishAll();
+
+  assert.equal(scene.meshes.size, 1);
 });
