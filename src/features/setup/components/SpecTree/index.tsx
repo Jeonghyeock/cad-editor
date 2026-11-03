@@ -221,8 +221,8 @@ const SpecTree = ({
 }: SpecTreeProps) => {
   const models = useAtomValue(setupModelsAtom);
   const deletedBodies = useAtomValue(setupDeletedBodiesAtom);
-  const referencePlanes = useAtomValue(setupReferencePlanesAtom);
-  const setReferencePlanes = useSetAtom(setupReferencePlanesAtom);
+  // 참조 평면 삭제도 통합 history 에 기록 — Ctrl+Z 로 지운 평면이 돌아오게.
+  const [referencePlanes, setReferencePlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes");
   const sketchPending = useAtomValue(setupSketchPlaneSelectionPendingAtom);
   const operations = useAtomValue(setupOperationsAtom);
   const _constraints = useAtomValue(setupConstraintsAtom);
