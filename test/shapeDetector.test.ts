@@ -118,3 +118,29 @@ test("다리 선으로 이은 나란한 두 사각형은 각자 면이고 다리
   ]);
   assert.deepEqual(faces(shapes), ["b,l,r,t", "b2,l2,r2,t2"]);
 });
+
+test("같은 현 위의 선과 호에 세 번째 변이 붙어도 면 경계는 geomId 가 아니라 실제 모양으로 정해진다", () => {
+  // 고치기 전에는 호 반변의 각도를 현 방향으로 잡아 같은 현의 선과 각도가 같았고, 순서가 geomId 로 정해져
+  // id 에 따라 사각형 면에 선 대신 아래로 볼록한 호가 들어갔다
+  const rect: Seg[] = [["sideB", 10, 0, 10, 10], ["sideC", 10, 10, 0, 10], ["sideD", 0, 10, 0, 0]];
+  // A(0,0)–B(10,0) 를 잇는 직선과, 같은 현 아래로 볼록한 반원(중심 (5,0), A 에서 CCW 로 B 까지)
+  const bulge = (id: string) => ({ type: "arc" as const, id, cx: 5, cy: 0, r: 5, startAngle: Math.PI, endAngle: 0 });
+  for (const [lineId, arcId] of [["chord", "a-bulge"], ["chord", "z-bulge"]]) {
+    const shapes = sketch([...rect, [lineId, 0, 0, 10, 0]], [bulge(arcId)]);
+    assert.ok(faces(shapes).includes(`${lineId},sideB,sideC,sideD`), `호 id ${arcId}: ${faces(shapes).join(" / ")}`);
+    assert.ok(!faces(shapes).some((f) => f.split(",").includes(arcId) && f.split(",").includes("sideB")),
+      `호 id ${arcId}: 사각형 면에 호가 섞였다 — ${faces(shapes).join(" / ")}`);
+  }
+});
+
+test("선과 같은 접선으로 나가는 호도 휘는 방향으로 순서가 정해진다", () => {
+  // 접선 각도만 보면 A(0,0) 에서 +x 로 나가는 선 AB 와 호 AE 의 각도가 같다 — 그때는 현이 왼쪽으로 휘는 쪽이 CCW 로 뒤다
+  const square: Seg[] = [["ab", 0, 0, 10, 0], ["bc", 10, 0, 10, 10], ["cd", 10, 10, 0, 10], ["da", 0, 10, 0, 0], ["ec", 5, 5, 10, 10]];
+  // 중심 (0,5) 반지름 5 — A 에서 +x 로 나가 E(5,5) 까지 CCW
+  const arc = (id: string) => ({ type: "arc" as const, id, cx: 0, cy: 5, r: 5, startAngle: -Math.PI / 2, endAngle: 0 });
+  for (const arcId of ["a-arc", "z-arc"]) {
+    const shapes = sketch(square, [arc(arcId)]);
+    assert.deepEqual(faces(shapes), [`${arcId},ab,bc,ec`, `${arcId},cd,da,ec`].map((f) => f.split(",").sort().join(",")).sort(),
+      `호 id ${arcId}: ${faces(shapes).join(" / ")}`);
+  }
+});

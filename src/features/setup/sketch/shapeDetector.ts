@@ -100,11 +100,33 @@ type HalfEdge = {
   geomId: string;
   fromNode: PointKey;  // 등가 클래스 대표
   toNode: PointKey;
-  angle: number;       // fromNode에서 toNode 방향 각도 (atan2)
+  angle: number;       // fromNode에서 나가는 방향 각도 (atan2). 선은 현 방향, 호·곡선은 fromNode 에서의 접선 방향
+  turn: number;        // 접선이 같은 반변끼리 순서를 정하는 보조 키: 현 방향 - 접선 방향 (왼쪽으로 휠수록 큼)
   twin: HalfEdge | null; // 반대 방향
   next: HalfEdge | null; // 같은 face에서 다음 half-edge (angle sort 후 결정)
   used: boolean;
 };
+
+const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * 호·곡선이 끝점에서 나가는 접선 각도. from = 0 이면 getEndpointIndices 의 첫 끝점에서, 1 이면 둘째 끝점에서.
+ * 선이나 접선을 정할 수 없으면 null (현 방향을 쓴다).
+ */
+function departAngle(geom: SerializedGeometry, from: 0 | 1): number | null {
+  if (geom.type === "arc") {
+    // 호는 start(vertex 1)에서 CCW 로 end(vertex 2)까지 — start 에서는 반지름 +90°, end 에서 되돌아갈 때는 -90°
+    return wrapAngle(from === 0 ? geom.startAngle + Math.PI / 2 : geom.endAngle - Math.PI / 2);
+  }
+  if (geom.type === "curve" && geom.points.length >= 2) {
+    // clamped NURBS 는 끝점에서 첫 제어 다각형 변 방향으로 나간다
+    const pts = from === 0 ? geom.points : [...geom.points].reverse();
+    const p0 = pts[0];
+    const p1 = pts.find((p) => Math.hypot(p.x - p0.x, p.y - p0.y) > 1e-9);
+    return p1 ? Math.atan2(p1.y - p0.y, p1.x - p0.x) : null;
+  }
+  return null;
+}
 
 /**
  * 면 경계 반변(가지·다리를 뺀 것)을 이어지는 루프로 나눠, 면적(CCW 양수)이 가장 큰 루프를 반환.
@@ -237,8 +259,12 @@ export function detectClosedShapes(
     const cB = repCoord.get(nodeB);
     if (!cA || !cB) continue;
 
-    const angleFwd = Math.atan2(cB.y - cA.y, cB.x - cA.x);
-    const angleRev = Math.atan2(cA.y - cB.y, cA.x - cB.x);
+    // 노드에서 나가는 방향. 호·곡선은 현이 아니라 노드에서의 접선 방향을 쓴다 — 현 방향을 쓰면 같은 현 위의 선과
+    // 호(D 모양)의 각도가 같아져, 세 번째 변이 붙은 노드에서 순서가 geomId 로 정해졌다.
+    const chordFwd = Math.atan2(cB.y - cA.y, cB.x - cA.x);
+    const chordRev = Math.atan2(cA.y - cB.y, cA.x - cB.x);
+    const angleFwd = departAngle(geom, 0) ?? chordFwd;
+    const angleRev = departAngle(geom, 1) ?? chordRev;
 
     const fwd: HalfEdge = {
       id: `${geomId}:fwd`,
@@ -246,6 +272,7 @@ export function detectClosedShapes(
       fromNode: nodeA,
       toNode: nodeB,
       angle: angleFwd,
+      turn: wrapAngle(chordFwd - angleFwd),
       twin: null,
       next: null,
       used: false,
@@ -256,6 +283,7 @@ export function detectClosedShapes(
       fromNode: nodeB,
       toNode: nodeA,
       angle: angleRev,
+      turn: wrapAngle(chordRev - angleRev),
       twin: null,
       next: null,
       used: false,
@@ -276,6 +304,9 @@ export function detectClosedShapes(
     edges.sort((a, b) => {
       const da = a.angle - b.angle;
       if (Math.abs(da) > 1e-9) return da;
+      // 접선이 같으면(선과 그 선에 접하는 호 등) 왼쪽으로 더 휘는 쪽이 CCW 로 뒤다
+      const dt = a.turn - b.turn;
+      if (Math.abs(dt) > 1e-9) return dt;
       // 같은 각도 (parallel edge): geomId로 안정 정렬
       return a.geomId < b.geomId ? -1 : a.geomId > b.geomId ? 1 : 0;
     });
