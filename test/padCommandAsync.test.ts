@@ -159,3 +159,38 @@ test("Revolve 생성 직후, 결과가 나오기 전에 undo 하면 솔리드가
   assert.deepEqual(deps.ops(), []);
   assert.deepEqual([...scene.meshes], []);
 });
+
+// 같은 op id 를 다루는 서로 다른 명령끼리도 순서를 지킨다(리뷰 반영) — 명령마다 큐를 따로 두면 생성 중인 Pad 를 바로
+// 지우거나 편집할 때 앞 명령의 늦은 add 가 뒤 명령의 결과를 덮어썼다.
+
+test("생성 add 가 끝나기 전에 그 Pad 를 지우면, add 가 끝나도 메시가 남지 않는다", async () => {
+  const { scene, deps } = setup();
+  const pad: PadPocketOperation = { ...pocket, type: "pad", targetOperationId: undefined };
+  new CreatePadCommand(pad, "Sketch 1", new Map(), deps.setOperations, deps.getScene, deps.setHidden, deps.getHidden).execute();
+  new DeletePadCommand(pad.id, deps.setOperations, deps.getScene, new Map(), deps.setHidden, deps.getHidden).execute();
+  await scene.finishAll();
+
+  assert.deepEqual(deps.ops(), []);
+  assert.deepEqual([...scene.meshes], []);
+});
+
+test("생성 add 가 끝나기 전에 그 Pad 를 편집하면 편집 결과 메시 하나만 남는다", async () => {
+  const { scene, deps } = setup();
+  const pad: PadPocketOperation = { ...pocket, type: "pad", targetOperationId: undefined };
+  new CreatePadCommand(pad, "Sketch 1", new Map(), deps.setOperations, deps.getScene, deps.setHidden, deps.getHidden).execute();
+  new EditPadCommand(pad, { ...pad, depth: 30 }, "Sketch 1", new Map(), deps.setOperations, deps.getScene).execute();
+  await scene.finishAll();
+
+  assert.deepEqual([...scene.meshes].map((m) => m.split(":")[1]), ["30"]);
+});
+
+test("서로 다른 Pad 둘을 결과 전에 잇달아 만들면 둘 다 남는다", async () => {
+  const { scene, deps } = setup();
+  const pad1: PadPocketOperation = { ...pocket, id: "p1", type: "pad", targetOperationId: undefined };
+  const pad2: PadPocketOperation = { ...pad1, id: "p2" };
+  new CreatePadCommand(pad1, "Sketch 1", new Map(), deps.setOperations, deps.getScene, deps.setHidden, deps.getHidden).execute();
+  new CreatePadCommand(pad2, "Sketch 1", new Map(), deps.setOperations, deps.getScene, deps.setHidden, deps.getHidden).execute();
+  await scene.finishAll();
+
+  assert.deepEqual([...scene.meshes].map((m) => m.split("#")[0]).sort(), ["p1", "p2"]);
+});

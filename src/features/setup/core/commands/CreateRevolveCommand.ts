@@ -7,12 +7,12 @@ import type { OperationTreeEntry, RevolveOperation, SerializedGeometry } from ".
 
 import type { GlobalCommand } from "../GlobalCommand";
 
-import { SceneTaskQueue } from "./SceneTaskQueue";
+import { sceneTasksFor } from "./SceneTaskQueue";
 
+// 솔리드 add(비동기)·remove 는 씬의 공용 큐로 차례로 실행 — 결과가 나오기 전에 undo/redo 해도 늦은 add 가 씬을
+// 덮어쓰지 않게.
 export class CreateRevolveCommand implements GlobalCommand {
   readonly label = "Create Revolve";
-  /** 솔리드 add(비동기)·remove 를 차례로 — 결과가 나오기 전에 undo/redo 해도 늦은 add 가 씬을 덮어쓰지 않게. */
-  private _sceneTasks = new SceneTaskQueue();
 
   constructor(
     private _operation: RevolveOperation,
@@ -29,15 +29,21 @@ export class CreateRevolveCommand implements GlobalCommand {
     };
     this._setOperations((prev) => [...prev, entry]);
 
-    this._sceneTasks.run(() =>
-      this._getScene()?.addRevolvedSolid(this._operation, this._geometries),
-    );
+    const scene = this._getScene();
+    if (scene) {
+      sceneTasksFor(scene).run(this._operation.id, () =>
+        scene.addRevolvedSolid(this._operation, this._geometries),
+      );
+    }
   }
 
   undo(): void {
     const opId = this._operation.id;
     this._setOperations((prev) => prev.filter((e) => e.operation.id !== opId));
 
-    this._sceneTasks.run(() => this._getScene()?.removeExtrudedSolid(opId));
+    const scene = this._getScene();
+    if (scene) {
+      sceneTasksFor(scene).run(opId, () => scene.removeExtrudedSolid(opId));
+    }
   }
 }

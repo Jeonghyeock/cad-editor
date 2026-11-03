@@ -9,13 +9,13 @@ import type { OperationTreeEntry, PadPocketOperation, RevolveOperation, Serializ
 
 import type { GlobalCommand } from "../GlobalCommand";
 
-import { SceneTaskQueue } from "./SceneTaskQueue";
+import { sceneTasksFor } from "./SceneTaskQueue";
 
+// 솔리드 제거와 undo 의 복원(비동기)은 씬의 공용 큐로 차례로 실행 — 생성·복원 결과 전에 지우거나 redo 해도 유령 솔리드가
+// 남지 않게.
 export class DeletePadCommand implements GlobalCommand {
   readonly label = "Delete Pad/Pocket";
   private _savedEntry: OperationTreeEntry | null = null;
-  /** undo 의 솔리드 복원(비동기)과 redo 의 제거를 차례로 — 복원 결과 전에 redo 해도 유령 솔리드가 남지 않게. */
-  private _sceneTasks = new SceneTaskQueue();
   /** execute 시점에 hiddenShapeIds 에서 실제로 제거한 id 들 — undo 시 그것만 다시 추가. */
   private _removedHiddenIds = new Set<string>();
 
@@ -35,7 +35,10 @@ export class DeletePadCommand implements GlobalCommand {
       return prev.filter((e) => e.operation.id !== this._operationId);
     });
 
-    this._sceneTasks.run(() => this._getScene()?.removeExtrudedSolid(this._operationId));
+    const scene = this._getScene();
+    if (scene) {
+      sceneTasksFor(scene).run(this._operationId, () => scene.removeExtrudedSolid(this._operationId));
+    }
 
     // auto-show — source shape 의 hidden 상태 해제. operation.profileIds 중 현재 hidden 인 것만
     // 제거 (manual hide 후 다시 show 한 케이스는 영향 없음). 백업해서 undo 시 복원.
@@ -59,18 +62,19 @@ export class DeletePadCommand implements GlobalCommand {
 
     this._setOperations((prev) => [...prev, this._savedEntry!]);
 
-    const op = this._savedEntry.operation;
-    this._sceneTasks.run(() => {
-      const scene = this._getScene();
-      if (!scene) return;
-      switch (op.type) {
-        case "pad":
-        case "pocket":
-          return scene.addExtrudedSolid(op as PadPocketOperation, this._geometries);
-        case "revolve":
-          return scene.addRevolvedSolid(op as RevolveOperation, this._geometries);
-      }
-    });
+    const scene = this._getScene();
+    if (scene) {
+      const op = this._savedEntry.operation;
+      sceneTasksFor(scene).run(op.id, () => {
+        switch (op.type) {
+          case "pad":
+          case "pocket":
+            return scene.addExtrudedSolid(op as PadPocketOperation, this._geometries);
+          case "revolve":
+            return scene.addRevolvedSolid(op as RevolveOperation, this._geometries);
+        }
+      });
+    }
 
     // execute 가 제거했던 id 들만 다시 hidden 으로.
     if (this._removedHiddenIds.size > 0) {
