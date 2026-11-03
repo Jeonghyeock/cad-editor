@@ -152,6 +152,19 @@ function getVertices(mesh: THREE.Mesh): THREE.Vector3[] {
   return unique;
 }
 
+/**
+ * group 의 몸체 메시(createStepModelGroup 이 만든, userData.bodyIndex 가 숫자인 Mesh)만 모은다.
+ * 꼭짓점 hover/선택 구슬도 group 에 붙는 Mesh 라, 함께 레이캐스트하면 구슬을 맞혀 엉뚱한 bodyIndex 와
+ * 구슬의 꼭짓점을 돌려주고 occlusion 검사에서 꼭짓점이 자기 구슬에 가려진다.
+ */
+function getBodyMeshes(group: THREE.Group): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = [];
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh && typeof child.userData.bodyIndex === "number") meshes.push(child);
+  });
+  return meshes;
+}
+
 /** ModelManager 가 BRep wireframe 추가/제거 후 호출 — cache invalidate. */
 export function invalidateEdgeCacheForGroup(group: THREE.Group): void {
   group.traverse((obj) => {
@@ -375,12 +388,7 @@ export const pickFace = (
   raycaster: THREE.Raycaster,
   group: THREE.Group,
 ): { faceGroupId: number; point: THREE.Vector3 } | null => {
-  const meshes: THREE.Mesh[] = [];
-  group.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      meshes.push(child);
-    }
-  });
+  const meshes = getBodyMeshes(group);
 
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
@@ -411,13 +419,12 @@ export const pickEdge = (
   screenHeight: number,
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; edgeIndex: number; point: THREE.Vector3 } | null => {
-  const meshes: THREE.Mesh[] = [];
-  group.traverse((child) => { if (child instanceof THREE.Mesh) meshes.push(child); });
+  const meshes = getBodyMeshes(group);
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
 
   const hitMesh = intersections[0].object as THREE.Mesh;
-  const bodyIndex = meshes.indexOf(hitMesh);
+  const bodyIndex: number = hitMesh.userData.bodyIndex;
   const edges = getEdges(hitMesh);
   const camPos = camera.position;
   const occlusionRay = new THREE.Raycaster();
@@ -469,13 +476,12 @@ export const pickVertex = (
   screenHeight: number,
   mouseScreen: THREE.Vector2,
 ): { bodyIndex: number; vertexIndex: number; point: THREE.Vector3 } | null => {
-  const meshes: THREE.Mesh[] = [];
-  group.traverse((child) => { if (child instanceof THREE.Mesh) meshes.push(child); });
+  const meshes = getBodyMeshes(group);
   const intersections = raycaster.intersectObjects(meshes);
   if (intersections.length === 0) return null;
 
   const hitMesh = intersections[0].object as THREE.Mesh;
-  const bodyIndex = meshes.indexOf(hitMesh);
+  const bodyIndex: number = hitMesh.userData.bodyIndex;
   const vertices = getVertices(hitMesh);
   const camPos = camera.position;
   const occlusionRay = new THREE.Raycaster();
