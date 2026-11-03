@@ -45,7 +45,6 @@ export class BakedSketchManager implements EntityPicker {
     private _scene: THREE.Scene,
     private _renderer: THREE.WebGLRenderer,
     private _getPlaneKey: (plane?: SketchPlane) => string | null,
-    private _getSketchPlaneData: () => { origin: THREE.Vector3; u: THREE.Vector3; v: THREE.Vector3 } | null,
   ) {}
 
   get savedSketches(): Map<string, SerializedSketch> {
@@ -90,20 +89,9 @@ export class BakedSketchManager implements EntityPicker {
     // 기존 bake 제거
     this._removeBakedGroup(key);
 
-    // setupSketchPlane에서 모델 오프셋이 적용된 origin 사용 (face 스케치 좌표 보정)
-    const sketchPlaneData = this._getSketchPlaneData();
-    const actualPlane: SketchPlane = sketchPlaneData
-      ? {
-          origin: {
-            x: sketchPlaneData.origin.x,
-            y: sketchPlaneData.origin.y,
-            z: sketchPlaneData.origin.z,
-          },
-          normal: plane.normal,
-          u: plane.u,
-          v: plane.v,
-        }
-      : plane;
+    // 키를 만든 plane 을 그대로 저장한다. 다시 열 때 저장 plane 으로 키를 다시 만들므로, 둘의 좌표계가
+    // 다르면(예전 face 스케치: 키는 STEP 좌표, 저장은 오프셋을 더한 world) 그 스케치를 가리키는 Pad 를
+    // 찾지 못한다. face 스케치 plane 은 useCrossSectionMode 가 world 좌표로 만든다.
 
     // 이름 보존: caller 가 전달 안 했으면 기존 saved sketch 의 name 유지 (rebake 케이스).
     //
@@ -113,7 +101,7 @@ export class BakedSketchManager implements EntityPicker {
     // 메모리 표현이 정합되도록.
     const existingName = this._savedSketches.get(key)?.name;
     const finalName = name ?? existingName;
-    const serialized: SerializedSketch = { plane: actualPlane };
+    const serialized: SerializedSketch = { plane };
     if (finalName) serialized.name = finalName;
     if (hasGeometries && geometries) serialized.geometries = geometries;
     if (constraints && constraints.length > 0) serialized.constraints = constraints;
@@ -343,6 +331,11 @@ export class BakedSketchManager implements EntityPicker {
   }
 
   restoreSavedSketch(planeKey: string, data: SerializedSketch): void {
+    // bakeSketch 처럼 shape.planeKey 를 이 스케치의 키로 맞춘다. 예전 face 스케치 파일은 shape 에
+    // STEP 좌표 키가 남아 있어, SpecTree 의 'Shapes [Sketch]' 묶음(shape.planeKey === entry.planeKey)에서 빠졌다.
+    if (data.shapes?.some((sh) => sh.planeKey !== planeKey)) {
+      data = { ...data, shapes: data.shapes.map((sh) => ({ ...sh, planeKey })) };
+    }
     this._savedSketches.set(planeKey, data);
     // mesh 가 만들어질 컨텐츠가 있을 때만 group 생성.
     // 빈 sketch entry 는 _savedSketches 에만 저장 (CATIA 식 entry 보존). 빈 group 생성으로

@@ -54,7 +54,9 @@ export const useCrossSectionMode = ({ getScene }: UseCrossSectionModeOptions) =>
       setProfiles((prev) => [...prev, profile]);
 
       // SketchPlane 구성 (CATIA 스타일: 글로벌 원점을 plane에 투영)
-      // world 좌표에서 투영 후 STEP 좌표로 역변환 (setupSketchPlane이 offset 재적용)
+      // origin 은 world 좌표로 둔다. 이 plane 으로 planeKey 를 만들고(SpecTree entry·Pad 의
+      // sketchPlaneKey·viewState) bake 도 이 plane 을 그대로 저장하므로, STEP 좌표로 되돌려 두면
+      // 키(STEP 좌표)와 저장 plane(world)이 어긋나 파일을 다시 열 때 Pad 를 찾지 못한다.
       const { u, v } = buildPlaneCoordSystem(result.planeNormal);
       const n = result.planeNormal;
       const o = result.planeOrigin;
@@ -63,14 +65,8 @@ export const useCrossSectionMode = ({ getScene }: UseCrossSectionModeOptions) =>
       // world 좌표계에서 투영: plane은 (o + offset) 을 지나므로
       const dWorld = (o.x + offset.x) * n.x + (o.y + offset.y) * n.y + (o.z + offset.z) * n.z;
       const projWorld = { x: dWorld * n.x, y: dWorld * n.y, z: dWorld * n.z };
-      // STEP 좌표로 역변환 (setupSketchPlane이 offset을 다시 더함)
-      const projectedOrigin = {
-        x: projWorld.x - offset.x,
-        y: projWorld.y - offset.y,
-        z: projWorld.z - offset.z,
-      };
       const sketchPlane: SketchPlane = {
-        origin: projectedOrigin,
+        origin: projWorld,
         normal: result.planeNormal,
         u,
         v,
@@ -89,8 +85,9 @@ export const useCrossSectionMode = ({ getScene }: UseCrossSectionModeOptions) =>
           y: result.planeOrigin.y + offset.y,
           z: result.planeOrigin.z + offset.z,
         };
-        // 스케치 평면 설정 (invisible plane + overlay + 카메라 slerp)
-        scene.setupSketchPlane(sketchPlane, modelId, { cameraTargetWorld: faceCentroidWorld });
+        // 스케치 평면 설정 (invisible plane + overlay + 카메라 slerp). origin 이 이미 world 라
+        // modelId 를 넘기지 않는다 — 넘기면 모델 오프셋을 한 번 더 더한다.
+        scene.setupSketchPlane(sketchPlane, undefined, { cameraTargetWorld: faceCentroidWorld });
       }
 
         // viewMode/sketchPlaneKey 설정은 caller (handleFacePick) 가 enterSketchMode 로 일괄 처리.
