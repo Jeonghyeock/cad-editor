@@ -534,8 +534,9 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       if (saved) {
         restoreSketch(saved);
         s.removeBakedSketch(sketchPlane);
-      } else if (!existingEntry) {
-        // 새 스케치: 이전 스케치 잔여물 없이 참조 기하만 주입
+      } else {
+        // 새 스케치 / 엔트리만 있는 빈 스케치 (handleEnterSketchByKey 의 empty re-enter 와 같음):
+        // 이전 스케치 잔여물 없이 참조 기하만 주입
         startBlankSketch(geometryStoreRef.current, constraintStoreRef.current);
       }
 
