@@ -114,6 +114,11 @@ export class GlobalHistoryManager {
     this._notifyListeners("sketch");
   }
 
+  /** 지금 열린 스케치 (`planeKey#세대`, 없으면 null) — 나중에 답이 오는 안내가 같은 스케치인지 확인할 때 쓴다 */
+  get activeSketchKey(): string | null {
+    return this._activeSketchKey;
+  }
+
   /** 이 평면의 스케치가 지금 열려 있는지 (세대와 무관) — DeleteSketchCommand 의 undo/redo 가드 */
   isPlaneOpen(planeKey: string): boolean {
     return this._activePlaneKey === planeKey;

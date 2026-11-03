@@ -149,3 +149,27 @@ test("과구속 안내에서 취소하면 이전 값 그대로 둔다", async ()
   assert.equal(lengthOf(store), 10);
   assert.equal(d && "isReference" in d && d.isReference, false);
 });
+
+// 리뷰 반영(2차) — 과구속 안내의 콜백이 편집 당시의 치수·store 를 붙든 채, 답할 때 상황을 확인하지 않았다.
+
+test("안내에 답하기 전에 다른 스케치로 바뀌었으면 참조 치수로 바꾸지 않는다", async () => {
+  const { store, history } = await fixedLineWithLength();
+  const prompts: ((asReference: boolean) => void)[] = [];
+  await dimensionConfirm(store, "d", 20, (_constraint, callback) => prompts.push(callback));
+  history.setActiveSketch("YZ");
+
+  prompts[0](true);
+  const d = store.constraintStore?.constraints.get("d");
+  assert.equal(d && "isReference" in d && d.isReference, false);
+});
+
+test("안내에 답하기 전에 그 치수가 지워졌으면 아무것도 하지 않는다", async () => {
+  const { store } = await fixedLineWithLength();
+  const prompts: ((asReference: boolean) => void)[] = [];
+  await dimensionConfirm(store, "d", 20, (_constraint, callback) => prompts.push(callback));
+  store.removeConstraintById("d");
+
+  prompts[0](true);
+  // 고치기 전에는 지워진 치수가 참조 치수로 다시 들어왔다
+  assert.equal(store.constraintStore?.constraints.has("d"), false);
+});
