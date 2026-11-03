@@ -22,46 +22,48 @@ type NativeRawEdge =
       hintAxis?: Vec3;
     };
 
-/** axis 와 수직인 단위 xDir 벡터 — startParam=0 의 reference 방향 (full circle 이라 임의 OK). */
-function pickXDirPerpendicular(axis: Vec3): Vec3 {
-  // axis 와 가장 안 평행한 world basis 와 cross
-  const ax = Math.abs(axis.x);
-  const ay = Math.abs(axis.y);
-  const az = Math.abs(axis.z);
-  let ref: Vec3;
-  if (ax <= ay && ax <= az) ref = { x: 1, y: 0, z: 0 };
-  else if (ay <= ax && ay <= az) ref = { x: 0, y: 1, z: 0 };
-  else ref = { x: 0, y: 0, z: 1 };
-  // cross(axis, ref) → axis 와 수직
-  const x = axis.y * ref.z - axis.z * ref.y;
-  const y = axis.z * ref.x - axis.x * ref.z;
-  const z = axis.x * ref.y - axis.y * ref.x;
-  const len = Math.hypot(x, y, z);
-  return len < 1e-12
-    ? { x: 1, y: 0, z: 0 }
-    : { x: x / len, y: y / len, z: z / len };
-}
-
 /**
  * Native raw edge → BRepEdgeCurve 변환.
  * cpp 측이 GeomAbs_Circle 을 식별하고 hintCenter/Radius/Axis 를 보내지만 type 은 "other" 로 emit.
  * 여기서 하나의 정합된 BRepEdgeCurve 표현으로 변환 — 2D projection (BRepEdgeProjector) 과 3D
  * wireframe 양쪽이 정확한 parametric 정보를 사용 가능.
  *
- * 한계: cpp 가 startParam/endParam 을 안 보내므로 trimmed arc (hole 의 일부) 는 full circle 로
- * 들어감. 일반적 STEP 의 round hole / boss 는 full circle 이라 안전. trimmed 처리는 cpp 변경 필요.
+ * cpp 가 startParam/endParam 을 보내지 않으므로 호의 범위는 points 에서 얻는다. points 는 엣지의 실제 범위
+ * [t0, t1] 을 같은 간격으로 샘플한 것이고, hintAxis 는 t0·t0+s/3·t0+2s/3 세 점의 AB×AC 라 점들이 도는 방향의
+ * 반시계 축이다. 그래서 첫 점 방향을 xDir(startParam 0)로 두고, 끝 점까지 축 기준 반시계 각을 endParam 으로 쓴다.
+ * 범위를 버리고 모두 전체 원으로 만들면 필렛 1/4 호가 와이어프레임·피킹·Project 에서 전체 원이 된다.
  */
 function adaptNativeEdge(raw: NativeRawEdge): BRepEdgeCurve {
   if (raw.type === "line") return raw;
   if (raw.curveHint === "circle" && raw.hintCenter && raw.hintRadius && raw.hintAxis) {
+    const c = raw.hintCenter;
+    const a = raw.hintAxis;
+    const first = raw.points[0];
+    const last = raw.points[raw.points.length - 1];
+
+    const fx = first.x - c.x, fy = first.y - c.y, fz = first.z - c.z;
+    const fLen = Math.hypot(fx, fy, fz);
+    const xDir = { x: fx / fLen, y: fy / fLen, z: fz / fLen };
+    // yDir = axis × xDir
+    const yDir = {
+      x: a.y * xDir.z - a.z * xDir.y,
+      y: a.z * xDir.x - a.x * xDir.z,
+      z: a.x * xDir.y - a.y * xDir.x,
+    };
+    const ex = last.x - c.x, ey = last.y - c.y, ez = last.z - c.z;
+    let sweep = Math.atan2(ex * yDir.x + ey * yDir.y + ez * yDir.z, ex * xDir.x + ey * xDir.y + ez * xDir.z);
+    if (sweep <= 0) sweep += Math.PI * 2;
+    // 끝 점이 첫 점으로 돌아오면 구멍·보스 같은 전체 원 (각이 0 근처라 위 계산으로는 0 이나 2π 로 갈린다)
+    const closed = Math.hypot(last.x - first.x, last.y - first.y, last.z - first.z) < raw.hintRadius * 1e-6;
+
     return {
       type: "circle",
-      center: raw.hintCenter,
-      axis: raw.hintAxis,
-      xDir: pickXDirPerpendicular(raw.hintAxis),
+      center: c,
+      axis: a,
+      xDir,
       radius: raw.hintRadius,
       startParam: 0,
-      endParam: Math.PI * 2,
+      endParam: closed ? Math.PI * 2 : sweep,
     };
   }
   // ellipse / bspline / 기타: hint 정보 부족 — sample points 그대로 (polyline fallback).
