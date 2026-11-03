@@ -818,6 +818,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
     setChamferDistance2,
     setOffsetMode,
     setOffsetDistance,
+    onDrivenDimensionPrompt,
     filletRadius,
     chamferDistance,
     chamferDistance2,

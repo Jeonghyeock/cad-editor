@@ -9,6 +9,7 @@ import { test } from "node:test";
 import type { SketchCommands } from "src/features/setup/Setup.type";
 import { AddConstraintCommand } from "src/features/setup/sketch/commands/AddConstraintCommand";
 import { AddGeometryCommand } from "src/features/setup/sketch/commands/AddGeometryCommand";
+import type { SketchConstraint } from "src/features/setup/sketch/constraints/SketchConstraint.type";
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
 import { createSketch, line, lineOf, round } from "./helpers/sketch";
@@ -33,10 +34,13 @@ stub("jotai", { ...jotai, useSetAtom: () => (value: SketchCommands) => (commands
 stub("src/features/setup/step/BRepEdgeExtractorNative", {});
 stub("src/features/setup/step/OcctWasmManager", {});
 
-async function dimensionConfirm(store: SketchGeometryStore, constraintId: string, value: number) {
+type Prompt = (constraint: SketchConstraint, callback: (asReference: boolean) => void) => void;
+
+async function dimensionConfirm(store: SketchGeometryStore, constraintId: string, value: number, onDrivenDimensionPrompt?: Prompt) {
   const { useSketchRefCallbacks } = await import("src/features/setup/hooks/useSketchRefCallbacks");
   // eslint-disable-next-line react-hooks/rules-of-hooks -- React 없이 훅이 만든 콜백만 부른다
   useSketchRefCallbacks({
+    onDrivenDimensionPrompt,
     geometryStoreRef: { current: store },
     activeDrawToolRef: { current: null },
     sceneRef: { current: null },
@@ -103,4 +107,45 @@ test("상충하는 치수 값은 적용하지 않고 이전 값과 이력을 그
   // 이력에도 남지 않았다 — undo 하면 치수를 건 작업이 빠진다
   history.undo();
   assert.equal(store.constraintStore?.constraints.has("d"), false);
+});
+
+// 리뷰 반영 — 상충하는 값으로 편집하면 되돌리기만 하고 아무 안내 없이 끝났다. 새 치수 배치처럼 과구속 안내를 띄운다.
+
+async function fixedLineWithLength() {
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 0)));
+  store.execute(new AddConstraintCommand({ type: "fix", id: "f1", point: { geomId: "L", vertexIndex: 0 }, x: 0, y: 0 }));
+  store.execute(new AddConstraintCommand({ type: "fix", id: "f2", point: { geomId: "L", vertexIndex: 1 }, x: 10, y: 0 }));
+  store.execute(new AddConstraintCommand({ type: "line_length", id: "d", line: { geomId: "L" }, value: 10 }));
+  return { store, history };
+}
+
+test("상충하는 치수 값이면 과구속 안내를 띄우고, 참조 치수로 하겠다면 그 치수를 참조로 바꾼다(이력 한 칸)", async () => {
+  const { store, history } = await fixedLineWithLength();
+  const prompts: { constraint: SketchConstraint; callback: (asReference: boolean) => void }[] = [];
+  await dimensionConfirm(store, "d", 20, (constraint, callback) => prompts.push({ constraint, callback }));
+
+  // 고치기 전에는 안내 없이 조용히 되돌렸다
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0].constraint.id, "d");
+  assert.equal(lengthOf(store), 10);
+
+  prompts[0].callback(true);
+  const d = store.constraintStore?.constraints.get("d");
+  assert.equal(d && "isReference" in d && d.isReference, true);
+  assert.equal(store.solveStatus, "fully-constrained");
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 0 });
+
+  history.undo();
+  const restored = store.constraintStore?.constraints.get("d");
+  assert.equal(restored && "isReference" in restored && restored.isReference, false);
+  assert.equal(lengthOf(store), 10);
+});
+
+test("과구속 안내에서 취소하면 이전 값 그대로 둔다", async () => {
+  const { store } = await fixedLineWithLength();
+  await dimensionConfirm(store, "d", 20, (_constraint, callback) => callback(false));
+  const d = store.constraintStore?.constraints.get("d");
+  assert.equal(lengthOf(store), 10);
+  assert.equal(d && "isReference" in d && d.isReference, false);
 });
