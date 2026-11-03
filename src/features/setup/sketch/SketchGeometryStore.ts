@@ -278,32 +278,22 @@ export class SketchGeometryStore {
     this.execute(new AddConstraintCommand(constraint));
   }
 
-  // 상충 여부를 검사하며 구속 적용 — over-constrained 시 undo + 좌표 원복
+  // 상충 여부를 검사하며 구속 적용 — over-constrained 시 이력에 넣지 않고 좌표까지 원복
   tryApplyConstraint(constraint: SketchConstraint): boolean {
-    // 기하 좌표 스냅샷 (undo 후에도 솔버가 좌표를 변형할 수 있으므로 수동 원복)
-    const snapshot = new Map<string, SerializedGeometry>();
-    for (const [id, geom] of this.geometries) {
-      snapshot.set(id, structuredClone(geom));
-    }
+    return this.tryExecute(new AddConstraintCommand(constraint));
+  }
 
-    this.execute(new AddConstraintCommand(constraint));
-
-    if (
-      this.solveStatus === "over-constrained" ||
-      this.solveStatus === "error"
-    ) {
-      // 글로벌 히스토리를 통해 원자적으로 undo
-      this.globalHistory?.undo();
-      // 좌표 원복
-      for (const [id, geom] of snapshot) {
-        this.geometries.set(id, geom);
-      }
-      this.solveConstraints();
-      this.recomputeFaces();
-      this.requestRender();
-      return false;
-    }
-    return true;
+  // 커맨드를 실행해 보고 over-constrained/error 가 아닐 때만 글로벌 히스토리에 기록. 상충하면 되돌리고 false.
+  tryExecute(command: GeometryCommand): boolean {
+    return (
+      this.globalHistory?.tryExecuteGeometryCommand(
+        command,
+        this,
+        (store) =>
+          store.solveStatus !== "over-constrained" &&
+          store.solveStatus !== "error",
+      ) ?? false
+    );
   }
 
   removeConstraintById(id: string): void {
