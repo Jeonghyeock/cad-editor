@@ -177,7 +177,9 @@ export const useDragController = (
         const ids = drag.vertexHandle ? [drag.vertexHandle.geomId] : drag.ids;
         for (const id of ids) {
           const g = selectStore.geometries.get(id);
-          if (g) drag.geoSnapshot.set(id, structuredClone(g));
+          // 원점·축 같은 참조 기하는 선택에 섞여 있어도 옮기지 않는다 — 스냅샷에서 빼면 아래 이동·재적용이 건너뛴다.
+          // (축은 좌표가 없어 translateGeometry 가 undefined 를 저장해 솔버·직렬화가 깨졌고, 원점은 (0,0) 을 벗어났다)
+          if (g && !("isReference" in g && g.isReference)) drag.geoSnapshot.set(id, structuredClone(g));
         }
         // vertex 드래그: coincident 체인(전이적)으로 연결된 모든 기하를 스냅샷에 포함
         if (drag.vertexHandle && selectStore.constraintStore) {
