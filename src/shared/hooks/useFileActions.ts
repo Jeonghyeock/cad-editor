@@ -1,5 +1,4 @@
 ﻿import { useStore } from "jotai";
-import { merge } from "lodash";
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,7 +8,6 @@ import { MenuChannels } from "src/app/channels/menuChannels";
 import { setupFlushSyncAtom } from "src/features/setup/Setup.store";
 
 import { APP_PATH } from "src/shared/constants/App.constant";
-import { INITIAL_GLOBAL_DATA } from "src/shared/constants/File.constant";
 import {
   fileIdAtom,
   fileDataAtomFamily,
@@ -21,8 +19,8 @@ import {
 import type { CadFile, GlobalData } from "src/shared/types/File.type";
 import { extractPersistentData } from "src/shared/utils/ExtractDataUtils";
 import {
-  convertFileContentToPersistentData,
   convertFileDataToFileContent,
+  createFileData,
 } from "src/shared/utils/FileUtils";
 
 export const useFileActions = () => {
@@ -87,30 +85,13 @@ export const useFileActions = () => {
 
       if (!file || !file.fileContent) return;
 
-      const persistentData = convertFileContentToPersistentData(
-        file.fileContent,
-      );
-      // ⚠️ lodash.merge 는 배열을 인덱스 단위 깊이 병합 — INITIAL_GLOBAL_DATA 의 배열이
-      // 비어있는 동안은 OK 지만, 향후 INITIAL 에 배열 default item 이 추가되면 persistentData
-      // 의 동일 인덱스 항목과 의도치 않은 깊이 병합이 발생할 수 있음. 그 경우 배열 필드는
-      // structuredClone 으로 분리 처리하거나 lodash.mergeWith 의 array customizer 사용.
-      const targetData: GlobalData = merge(
-        {},
-        INITIAL_GLOBAL_DATA,
-        persistentData,
-      );
-
       // globalData.setup.models 는 serialized form (base64) 그대로 보유 — decode 안 함.
       // runtime form (number[]) 은 setupModelsAtom (transient) 가 별도 보유 — input/index.tsx
       // 의 file load effect 에서 deserializeStepModels 호출 후 atom 채움.
-
-      // originData 는 deep clone — globalData 의 nested mutation 이 originData 에 누수
-      // 되는 것 방지. isModified deep compare 정확성 보장.
-      store.set(fileDataAtomFamily(file.fileId), {
-        fileId: file.fileId,
-        globalData: targetData,
-        originData: structuredClone(targetData),
-      });
+      store.set(
+        fileDataAtomFamily(file.fileId),
+        createFileData(file.fileId, file.fileContent),
+      );
 
       // inputDefinitionRequestedAtom은 globalData에서 derived — 별도 설정 불필요
     },
@@ -258,6 +239,9 @@ export const useFileActions = () => {
     async (filePath?: string): Promise<boolean> => {
       const fileId = store.get(fileIdAtom);
       const isModified = store.get(isModifiedAtomFamily(fileId));
+      const alreadyOpenIds = new Set(
+        store.get(openFileListAtom).map((file) => file.fileId),
+      );
       const res: boolean = await electron.ipcRenderer.invoke(
         FileChannels.OPEN_FILE,
         isModified,
@@ -270,7 +254,9 @@ export const useFileActions = () => {
       // updateRecentFileList() 제거 — dead atom + 무거운 IPC.
       await updateFileId();
 
-      setFileContentToFileData();
+      // 이미 열린 파일을 다시 열면 main 은 그 탭으로 바꾸기만 한다. 메모리의 (미저장일 수 있는)
+      // 편집을 디스크본으로 덮어쓰지 않도록, 새로 열린 파일일 때만 내용을 채운다.
+      if (!alreadyOpenIds.has(store.get(fileIdAtom))) setFileContentToFileData();
       setCurrentFileFromFileData();
       return true;
     },
