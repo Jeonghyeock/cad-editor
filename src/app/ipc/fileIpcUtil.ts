@@ -272,15 +272,10 @@ class FileIpcUtil {
       // 이런 파일 하나 때문에 창을 영영 닫지 못하게 된다.
       if (targetIndex === -1) return true;
 
-      // 수정된 내용이 없는 경우 닫기
+      // 수정된 내용이 없는 경우 디스크에 쓰지 않고 닫기.
+      // 다시 쓰면 읽기 전용 파일은 쓰기 실패로 탭이 닫히지 않고, 열어 둔 사이 바깥(git·동기화)에서 바뀐 파일은
+      // 연 시점의 내용으로 덮어써진다. 그 대신 수정 감지에 들지 않는 lastURL 등은 저장되지 않는다.
       if (!isModified) {
-        // 기존 파일이면 저장하고 닫기
-        const openFilePath = this.openFilePathList[targetIndex];
-        if (openFilePath.path) {
-          const res: boolean = await this.saveFile(fileId, fileContent);
-          if (!res) throw new Error("save failed");
-        }
-
         this.openFilePathList.splice(targetIndex, 1);
 
         if (this.openFilePathList.length) {
