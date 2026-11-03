@@ -41,6 +41,16 @@ export function planeKey(originX: number, originY: number, originZ: number, norm
   return `${r(originX)},${r(originY)},${r(originZ)}|${r(normalX)},${r(normalY)},${r(normalZ)}`;
 }
 
+/** planeKey 문자열 → origin·normal (반올림된 값). planeKey 형식이 아니면 null. */
+export function parsePlaneKey(key: string): {
+  origin: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };
+} | null {
+  const [o, n] = key.split("|").map((part) => part.split(",").map(Number));
+  if (o?.length !== 3 || n?.length !== 3 || [...o, ...n].some((x) => !Number.isFinite(x))) return null;
+  return { origin: { x: o[0], y: o[1], z: o[2] }, normal: { x: n[0], y: n[1], z: n[2] } };
+}
+
 /** SketchPlane 객체 → planeKey 문자열. file load 시 baked sketch hydrate 등 standalone 흐름 헬퍼. */
 export function planeKeyFromSketchPlane(plane: {
   origin: { x: number; y: number; z: number };

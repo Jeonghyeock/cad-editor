@@ -19,7 +19,7 @@ import { computeEngineScale, useInputSceneController } from "../../hooks/useInpu
 import { useSketchKeyboardHandler } from "../../hooks/useSketchKeyboardHandler";
 import { useSketchRefCallbacks } from "../../hooks/useSketchRefCallbacks";
 import type SetupScene from "../../rendering/SetupScene";
-import { enterSketchModeAtom, exitSketchModeAtom, type GeometryStoreBundle, setup3DSelectionAtom, setupActiveSketchNameAtom, setupDefinitionShapeHoveredIdAtom, setupDefinitionShapeSelectedIdAtom, setupBakedSketchesAtom, setupChamferModeAtom, setupChamferDistanceAtom, setupChamferDistance2Atom, setupConstraintApplicabilityAtom, setupAppliedConstraintTypesAtom, setupConstraintSolveStatusAtom, setupConstraintVisibilityFilterAtom, setupConstraintVisibleAtom, setupDeletedBodiesAtom, setupDimensionModeAtom, setupDrawToolAtom, setupFilletModeAtom, setupFilletRadiusAtom, setupHiddenBodiesAtom, setupModelsAtom, setupOffsetDistanceAtom, setupOffsetModeAtom, setupOperationsAtom, setupPendingRestoreAtom, setupReferencePlanesAtom, setupRefPlaneModeAtom, setupRefPlanePreviewAtom, setupSelectionInfoAtom, setupSketchConstraintListAtom, setupSketchEntriesAtom, setupSketchGeometryListAtom, setupSketchHoveredItemAtom, setupSketchPlaneSelectionPendingAtom, setupSketchPlaneAtom, setupSketchSelectedConstraintIdAtom, setupSketchSelectedIdsAtom, setupSketchShapeListAtom, setupUndoFlashIdsAtom, setupViewModeAtom } from "../../Setup.store";
+import { enterSketchModeAtom, exitSketchModeAtom, type GeometryStoreBundle, setup3DSelectionAtom, setupActiveSketchNameAtom, setupAtom, setupDefinitionShapeHoveredIdAtom, setupDefinitionShapeSelectedIdAtom, setupBakedSketchesAtom, setupChamferModeAtom, setupChamferDistanceAtom, setupChamferDistance2Atom, setupConstraintApplicabilityAtom, setupAppliedConstraintTypesAtom, setupConstraintSolveStatusAtom, setupConstraintVisibilityFilterAtom, setupConstraintVisibleAtom, setupDeletedBodiesAtom, setupDimensionModeAtom, setupDrawToolAtom, setupFilletModeAtom, setupFilletRadiusAtom, setupHiddenBodiesAtom, setupModelsAtom, setupOffsetDistanceAtom, setupOffsetModeAtom, setupOperationsAtom, setupPendingRestoreAtom, setupReferencePlanesAtom, setupRefPlaneModeAtom, setupRefPlanePreviewAtom, setupSelectionInfoAtom, setupSketchConstraintListAtom, setupSketchEntriesAtom, setupSketchGeometryListAtom, setupSketchHoveredItemAtom, setupSketchPlaneSelectionPendingAtom, setupSketchPlaneAtom, setupSketchSelectedConstraintIdAtom, setupSketchSelectedIdsAtom, setupSketchShapeListAtom, setupUndoFlashIdsAtom, setupViewModeAtom } from "../../Setup.store";
 import type { CrossSectionDef, OperationTreeEntry, SelectionPropertyInfo, SerializedGeometry, SerializedSketch, SketchConstraintTreeItem, SketchDrawToolType, SketchGeometryTreeItem, SketchPlane, SketchShapeTreeItem, SketchTreeEntry } from "../../Setup.type";
 import type { ConstraintApplicability, DimensionConstraintType } from "../../sketch/constraints/ConstraintValidator";
 import { getAppliedConstraintTypes, getConstraintApplicability } from "../../sketch/constraints/ConstraintValidator";
@@ -991,6 +991,21 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
     operationsRestoredRef.current = true;
   }, [scene, operations]);
 
+  // 구버전 파일의 STEP face 스케치 키(오프셋 전 STEP 좌표)를 복원한 스케치의 world 키로 옮긴다 —
+  // 연산의 sketchPlaneKey, 스케치 모드 viewState, 스케치 숨김 목록을 같은 규칙으로(utils/legacyPlaneKeys).
+  // 짝은 scene 에 올라온 모델의 오프셋으로 찾는다. 옮기기 전·후 파일 데이터를 돌려준다(옮긴 것이 없으면 같은 객체).
+  const migrateLegacyPlaneKeys = useCallback((s: SetupScene) => {
+    const current = store.get(setupAtom);
+    if (!current) return null;
+    const sketchPlanes = new Map<string, SketchPlane>();
+    for (const [key, sketch] of s.getSavedSketches()) sketchPlanes.set(key, sketch.plane);
+    const modelOffsets = s.getStepModelIds().map((id) => s.getModelOffset(id));
+    // 원점·참조 평면 키는 스케치가 없어도(빈 스케치 재진입) 유효하므로 옮기지 않는다
+    const migrated = migrateLegacyFacePlaneKeys(current, sketchPlanes, modelOffsets, (key) => s.resolveSketchPlaneByKey(key) !== null);
+    if (migrated !== current) store.set(setupAtom, migrated);
+    return { current, migrated };
+  }, [store]);
+
   // 파일 복원 대기 스케치 처리 (scene이 준비된 후 소비)
   const pendingRestore = useAtomValue(setupPendingRestoreAtom);
   useEffect(() => {
@@ -1000,12 +1015,10 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
 
     const SetupData = pendingRestore;
     const restoredEntries: SketchTreeEntry[] = [];
-    const restoredPlanes = new Map<string, SketchPlane>();
     for (const sketch of SetupData.sketches) {
       const key = scene.getPlaneKey(sketch.plane);
       if (key) {
         scene.restoreSavedSketch(key, sketch);
-        restoredPlanes.set(key, sketch.plane);
         restoredEntries.push({
           planeKey: key,
           // 사용자 부여한 이름 (sketch.name) 우선, 없으면 planeKey fallback (구버전 호환)
@@ -1016,12 +1029,11 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
     }
     if (restoredEntries.length > 0) store.set(setupSketchEntriesAtom, restoredEntries);
 
-    // 구버전 파일의 STEP face 스케치 연산은 오프셋 전 STEP 좌표 키를 가리켜, 위에서 복원한 world 키와
-    // 어긋난다. 모델 오프셋으로 짝을 찾아 키를 옮기고 저장 대상(operations atom)에도 반영한다.
-    // 모델은 useInputSceneController 의 모델 동기화 effect 가 이미 scene 에 넣었다.
-    const modelOffsets = scene.getStepModelIds().map((id) => scene.getModelOffset(id));
-    const restoredOperations = migrateLegacyFacePlaneKeys(SetupData.operations, restoredPlanes, modelOffsets);
-    if (restoredOperations !== SetupData.operations) store.set(setupOperationsAtom, restoredOperations);
+    // 구버전 파일의 STEP face 스케치 키는 위에서 복원한 world 키와 어긋난다 — 옮겨서 저장 데이터에도
+    // 반영한다. 모델은 useInputSceneController 의 모델 동기화 effect 가 이미 scene 에 넣었고, 늦게
+    // 올라오면 아래 모델 목록 effect 가 다시 시도한다.
+    const legacy = migrateLegacyPlaneKeys(scene);
+    const restoredOperations = legacy?.migrated.operations ?? SetupData.operations;
 
     // Solid operations (Pad/Pocket/Revolve) 재빌드 — 파일 전환 effect 가 scene.clearAllSketches
     // 로 SolidOperationManager 를 비웠고, sketches 가 위 loop 에서 복원되어 plane 기하 사용 가능.
@@ -1047,7 +1059,8 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
 
     // 뷰 상태 복원 (스케치 모드였으면 해당 plane으로 재진입)
     if (SetupData.viewState.mode === "2d-section") {
-      const planeKey = SetupData.viewState.sketchPlaneKey;
+      // 예전 파일의 STEP 좌표 키면 옮긴 키로 다시 들어간다 (옛 키로 들어가면 빈 스케치·중복 entry)
+      const planeKey = legacy?.migrated.viewState.sketchPlaneKey ?? SetupData.viewState.sketchPlaneKey;
       const planeName = SetupData.viewState.sketchPlaneName ?? planeKey ?? "";
       const faceSource = SetupData.viewState.sketchFaceSource;
 
@@ -1086,7 +1099,23 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       }
     }
     // flush와 originData 동기화는 index.tsx의 flushInputSync 및 fileId 전환 effect에서 처리
-  }, [scene, pendingRestore, store, enterSketchByKeyRef, applyCrossSection, restoreSketch, setActiveSketchName, setSketchPending, enterSketchMode]);
+  }, [scene, pendingRestore, store, enterSketchByKeyRef, applyCrossSection, restoreSketch, setActiveSketchName, setSketchPending, enterSketchMode, migrateLegacyPlaneKeys]);
+
+  // 모델이 pendingRestore 뒤에 scene 에 올라오면(모델 목록 변경) 구버전 키 이전을 다시 시도한다. 이미 옮긴
+  // 키는 스케치와 맞아 건너뛴다. 키가 바뀐 연산만 다시 만든다. 모델 동기화 effect(useInputSceneController)
+  // 보다 뒤에 선언되어 같은 커밋에서 모델이 scene 에 들어간 다음 돈다.
+  useEffect(() => {
+    if (!scene || scene.getSavedSketches().size === 0) return;
+    const legacy = migrateLegacyPlaneKeys(scene);
+    if (!legacy || legacy.migrated === legacy.current) return;
+    const movedKeys = new Set<string>();
+    legacy.migrated.operations.forEach((entry, i) => {
+      if (entry !== legacy.current.operations[i]) movedKeys.add(entry.operation.sketchPlaneKey);
+    });
+    for (const planeKey of movedKeys) {
+      scene.rebuildOperationsForSketch(planeKey, legacy.migrated.operations);
+    }
+  }, [scene, models, migrateLegacyPlaneKeys]);
 
   // ViewCube + GeometryOverlay 초기화
   useEffect(() => {
