@@ -30,3 +30,9 @@ test("default 가 module.exports 전체로 한 번 더 감싸여 풀려도 설�
   await installReactDevToolsFrom({ default: moduleExports });
   assert.deepEqual(installed, [REACT_DEVELOPER_TOOLS, REACT_DEVELOPER_TOOLS]);
 });
+
+test("default 없이 모듈 자체가 설치 함수로 풀려도 그 함수를 쓴다", async () => {
+  const { installed, installExtension } = fakeInstaller();
+  await installReactDevToolsFrom(Object.assign(installExtension, { REACT_DEVELOPER_TOOLS }));
+  assert.deepEqual(installed, [REACT_DEVELOPER_TOOLS]);
+});
