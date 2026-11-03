@@ -140,13 +140,13 @@ export class GlobalHistoryManager {
    * 명령을 실행·솔브해 본 뒤 accept 가 받아들일 때만 히스토리에 넣는다. 거부하면 명령을 되돌리고 좌표도 실행
    * 전으로 돌리며 스택은 건드리지 않는다 — 실행 후 undo 하는 방식은 redo 이력을 잘라 버리고, 거부된 명령을
    * redo 자리에 남겨 Ctrl+Y 로 검증 없이 들어가게 했다. 반환: 받아들였는지 여부.
+   * 빈 커맨드는 부르는 쪽(SketchGeometryStore._run)이 거른다.
    */
   tryExecuteGeometryCommand(
     command: GeometryCommand,
     store: SketchGeometryStore,
     accept: (store: SketchGeometryStore) => boolean,
   ): boolean {
-    if (command.isEmpty?.()) return true;
     const applied = applyGeometryCommand(command, store, accept);
     if (!applied) return false;
     // 열린 스케치가 없으면(3D 모드 등) 기록하지 않는다 — 그 엔트리를 적용할 스케치가 없어, 기록하면 그 자리에서

@@ -226,9 +226,10 @@ export class SketchGeometryStore {
   }
 
   // 실행·솔브하고 accept 로 받아들일지 정한다 — 히스토리가 있으면 받아들인 것만 기록, 없으면 기록 없이.
+  // 빈 커맨드(no-op)는 여기 한 곳에서 거른다 (실행도 기록도 하지 않음).
   private _run(command: GeometryCommand, accept: (store: SketchGeometryStore) => boolean): boolean {
-    if (this.globalHistory) return this.globalHistory.tryExecuteGeometryCommand(command, this, accept);
     if (command.isEmpty?.()) return true;
+    if (this.globalHistory) return this.globalHistory.tryExecuteGeometryCommand(command, this, accept);
     return applyGeometryCommand(command, this, accept) !== null;
   }
 
