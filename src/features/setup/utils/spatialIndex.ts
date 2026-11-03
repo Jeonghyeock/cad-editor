@@ -2,7 +2,8 @@
 // SnapEngine 등에서 근접 탐색에 사용
 
 export class SpatialGrid<T> {
-  private _cells = new Map<string, T[]>();
+  // 칸마다 Set — SnapEngine 은 기하 하나를 몸통·둘레 위 여러 점으로 넣어 같은 칸에 여러 번 떨어지므로 칸 안에서 중복을 없앤다
+  private _cells = new Map<string, Set<T>>();
   private _cellSize: number;
 
   constructor(cellSize: number) {
@@ -17,9 +18,9 @@ export class SpatialGrid<T> {
     const k = this._key(x, y);
     const cell = this._cells.get(k);
     if (cell) {
-      cell.push(item);
+      cell.add(item);
     } else {
-      this._cells.set(k, [item]);
+      this._cells.set(k, new Set([item]));
     }
   }
 
