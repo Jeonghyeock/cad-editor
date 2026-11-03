@@ -3,7 +3,7 @@
 import type { SerializedGeometry } from "../../Setup.type";
 
 import type { SketchConstraint } from "../constraints/SketchConstraint.type";
-import type { SketchGeometryStore } from "../SketchGeometryStore";
+import type { ShapeSnapshot, SketchGeometryStore } from "../SketchGeometryStore";
 
 import type { GeometryCommand } from "./GeometryCommand";
 
@@ -11,6 +11,8 @@ export class RemoveGeometryCommand implements GeometryCommand {
   private _geometries: SerializedGeometry[];
   // cascade 삭제된 구속조건 (undo 복원용)
   private _removedConstraints: SketchConstraint[] = [];
+  // 지운 기하를 쓰던 shape (undo 때 이미지·설정째 복원)
+  private _removedShapes: ShapeSnapshot[] = [];
 
   constructor(geometries: SerializedGeometry[]) {
     this._geometries = geometries;
@@ -18,6 +20,7 @@ export class RemoveGeometryCommand implements GeometryCommand {
 
   execute(store: SketchGeometryStore): void {
     const ids = new Set(this._geometries.map((g) => g.id));
+    this._removedShapes = store.snapshotShapesUsing(ids);
 
     // 연관 구속조건 cascade 삭제 (백업)
     if (store.constraintStore) {
@@ -37,6 +40,7 @@ export class RemoveGeometryCommand implements GeometryCommand {
     for (const geom of this._geometries) {
       store.geometries.set(geom.id, geom);
     }
+    store.restoreShapes(this._removedShapes);
     // cascade 삭제된 구속조건 복원
     if (store.constraintStore && this._removedConstraints.length > 0) {
       store.constraintStore.addConstraints(this._removedConstraints);

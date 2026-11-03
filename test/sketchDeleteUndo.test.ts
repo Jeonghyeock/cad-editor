@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SketchConstraintSolver } from "src/features/setup/sketch/constraints/SketchConstraintSolver";
+import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
 // 스케치 store 는 구속 아이콘(svg)을 불러오고, 모듈을 읽을 때 Image 로 미리 받아 둔다.
 // node 에는 둘 다 없으므로 파일 이름과 빈 Image 로 대신한 뒤 모듈은 동적 import 로 읽는다.
@@ -75,4 +76,72 @@ test("면으로 고른 사각형을 지우면 바깥 선과의 평행 구속도 
   history.undo();
   assert.equal(store.geometries.has("r"), true);
   assert.equal(constraints.constraints.get("par")?.type, "parallel");
+});
+
+// 이미지를 넣은 60×30 사각형(declared shape)을 만들고, 사용자가 바꾼 설정까지 걸어 둔다
+async function insertImageRectangle(store: SketchGeometryStore) {
+  const { InsertImageCommand } = await import("src/features/setup/sketch/commands/InsertImageCommand");
+  const { createRectangleGeometryAndConstraints } = await import("src/features/setup/sketch/commands/AddRectangleCommand");
+  const lineIds: [string, string, string, string] = ["t", "r", "b", "l"];
+  const rect = createRectangleGeometryAndConstraints(0, 0, 60, 30, lineIds);
+  store.execute(new InsertImageCommand(lineIds, rect.geometries, rect.constraints, IMAGE));
+  const shape = store.shapes[0];
+  shape.imageVisibility = false;
+  shape.sceneIndex = 2;
+  return shape.id;
+}
+
+const IMAGE = "data:image/png;base64,iVBORw0KGgo=";
+
+function assertImageShapeRestored(store: SketchGeometryStore, shapeId: string) {
+  assert.equal(store.shapes.length, 1);
+  const shape = store.shapes[0];
+  assert.equal(shape.id, shapeId);
+  assert.equal(shape.origin, "declared");
+  assert.equal(shape.image, IMAGE);
+  assert.equal(shape.imageVisibility, false);
+  assert.equal(shape.sceneIndex, 2);
+}
+
+test("이미지를 넣은 사각형의 변을 지우고 undo 하면 shape 의 이미지·설정까지 돌아온다", async () => {
+  // 고치기 전에는 선·구속만 돌아오고 shape 는 origin:"detected", 이미지 없음으로 새로 만들어져 저장해도 이미지가 사라졌다
+  const { store, history } = await createSketch();
+  const shapeId = await insertImageRectangle(store);
+
+  store.selectedIds = ["r"];
+  store.deleteSelected();
+  assert.equal(store.shapes.length, 0);
+
+  history.undo();
+  assertImageShapeRestored(store, shapeId);
+
+  // redo 뒤 다시 undo 해도 같다
+  history.redo();
+  assert.equal(store.shapes.length, 0);
+  history.undo();
+  assertImageShapeRestored(store, shapeId);
+});
+
+test("이미지를 넣은 사각형의 변을 Trim 처럼 갈라 바꾸고 undo 하면 shape 의 이미지·설정까지 돌아온다", async () => {
+  const { store, history } = await createSketch();
+  const { CompoundSketchCommand } = await import("src/features/setup/sketch/commands/CompoundSketchCommand");
+  const shapeId = await insertImageRectangle(store);
+
+  // Trim 이 쓰는 형태: 원본 변을 지우고 조각 둘을 넣는다
+  const right = store.geometries.get("r")!;
+  store.execute(
+    new CompoundSketchCommand(
+      [right],
+      [
+        { type: "line", id: "r1", x1: 60, y1: 0, x2: 60, y2: 10 },
+        { type: "line", id: "r2", x1: 60, y1: 20, x2: 60, y2: 30 },
+      ],
+      [],
+      [],
+    ),
+  );
+  assert.equal(store.shapes.some((s) => s.id === shapeId), false);
+
+  history.undo();
+  assertImageShapeRestored(store, shapeId);
 });

@@ -58,6 +58,9 @@ export function isAxisId(id: string): boolean {
   return id === REF_X_AXIS_ID || id === REF_Y_AXIS_ID;
 }
 
+/** 기하 삭제 커맨드가 undo 용으로 보관하는 shape 사본과 그 목록 위치 */
+export type ShapeSnapshot = { index: number; shape: SketchShape };
+
 export class SketchGeometryStore {
   geometries: Map<string, SerializedGeometry> = new Map();
   // 통합 hover 상태: 기하, vertex, 구속조건을 단일 필드로 관리
@@ -1010,6 +1013,33 @@ export class SketchGeometryStore {
   unregisterShape(lineIds: string[]): void {
     const id = `shape_${[...lineIds].sort().join(",")}`;
     this.shapes = this.shapes.filter((s) => s.id !== id);
+    this.markShapesChanged();
+  }
+
+  /**
+   * 주어진 기하를 쓰는 shape 를 목록 위치와 함께 복제해 둔다 (기하를 지우는 커맨드의 execute 용).
+   *
+   * 기하가 지워지면 recomputeShapes 가 그 shape 를 버린다. undo 로 기하만 되살리면 같은 루프가
+   * 이미지·origin·sceneIndex 같은 설정 없는 detected shape 로 새로 잡히므로, undo 에서
+   * restoreShapes 로 이 사본을 되돌려야 한다.
+   */
+  snapshotShapesUsing(geomIds: Set<string>): ShapeSnapshot[] {
+    const saved: ShapeSnapshot[] = [];
+    this.shapes.forEach((shape, index) => {
+      if (shape.lineIds.some((id) => geomIds.has(id))) {
+        saved.push({ index, shape: structuredClone(shape) });
+      }
+    });
+    return saved;
+  }
+
+  /** snapshotShapesUsing 으로 복제해 둔 shape 를 원래 위치에 되돌림 (같은 id 가 있으면 교체) */
+  restoreShapes(saved: ShapeSnapshot[]): void {
+    if (saved.length === 0) return;
+    for (const { index, shape } of saved) {
+      this.shapes = this.shapes.filter((s) => s.id !== shape.id);
+      this.shapes.splice(Math.min(index, this.shapes.length), 0, shape);
+    }
     this.markShapesChanged();
   }
 
