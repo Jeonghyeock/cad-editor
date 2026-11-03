@@ -728,10 +728,13 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
 
       // OCCT Face 생성 (B-Rep pipeline — bake와 병행)
       if (shapes.length > 0) {
+        // 아래 clearClosedSketch 가 geoStore.geometries 를 동기적으로 비우고, 동적 import 는 그 뒤에
+        // 끝난다. 같은 Map 을 넘기면 빈 기하로 face 를 만들므로 지금 기하를 복사해 넘긴다.
+        const faceGeometries = new Map(geoStore.geometries);
         import("../../step/OcctSketchNative").then(async ({ makeFaceFromShape }) => {
           for (const shape of shapes) {
             try {
-              await makeFaceFromShape(shape, geoStore.geometries, plane);
+              await makeFaceFromShape(shape, faceGeometries, plane);
             } catch {
               // OCCT 미사용 환경에서는 무시 (bake fallback 유지)
             }
