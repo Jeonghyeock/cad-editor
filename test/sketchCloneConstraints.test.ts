@@ -61,6 +61,12 @@ function directionConstraintsOf(store: SketchGeometryStore, geomId: string): str
     .map((c) => c.type);
 }
 
+function lineAnglesOf(store: SketchGeometryStore, geomId: string): number[] {
+  return [...store.constraintStore!.constraints.values()].flatMap((c) =>
+    c.type === "line_angle" && c.line.geomId === geomId ? [c.value] : [],
+  );
+}
+
 function reflect(p: Point, a: Point, b: Point): Point {
   const len = Math.hypot(b.x - a.x, b.y - a.y);
   const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
@@ -86,7 +92,7 @@ function assertMirroredInPlace(store: SketchGeometryStore, a: Point, b: Point) {
   });
 }
 
-test("H/V 사각형을 30° 축으로 대칭 복제해도 복제본이 찌그러지지 않는다", async () => {
+test("H/V 사각형을 30° 축으로 대칭 복제해도 복제본이 찌그러지지 않고, 방향은 절대 각도로 고정된다", async () => {
   // 고치기 전에는 horizontal/vertical 을 그대로 복사해, 솔버가 복제본을 축에 다시 세우며 60×30 이 4.0×37.0 으로 찌그러졌다
   const { store } = await createSketch();
   const { MirrorDrawTool } = await import("src/features/setup/sketch/tools/MirrorDrawTool");
@@ -99,8 +105,15 @@ test("H/V 사각형을 30° 축으로 대칭 복제해도 복제본이 찌그러
   tool.onPointerDown(store, b, b);
 
   assertMirroredInPlace(store, a, b);
-  for (const copy of copiesOf(store, RECT_IDS)) {
+  assert.ok(store.solveStatus !== "over-constrained" && store.solveStatus !== "error", `solveStatus=${store.solveStatus}`);
+  // 비스듬해진 복제 선은 H/V 대신 지금 방향의 절대 각도(line_angle)로 방향을 고정해, 원본과 같은 자유도를 지킨다
+  for (const copy of copiesOf(store, RECT_IDS) as Line[]) {
     assert.deepEqual(directionConstraintsOf(store, copy.id), []);
+    const angles = lineAnglesOf(store, copy.id);
+    assert.equal(angles.length, 1, `${copy.id} 의 line_angle 개수`);
+    const actual = (Math.atan2(copy.y2 - copy.y1, copy.x2 - copy.x1) * 180) / Math.PI;
+    const diff = Math.abs((((angles[0] - actual) % 360) + 540) % 360 - 180);
+    assert.ok(diff < 1e-6, `line_angle ${angles[0]}° 가 선 방향 ${actual}° 와 다르다`);
   }
 });
 
