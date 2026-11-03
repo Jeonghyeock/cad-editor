@@ -36,6 +36,28 @@ test("작은 값도 0 으로 표시하지 않아, 그대로 OK 할 수 있다", 
   assert.equal(confirmUnchanged("MKS", 4), 4);
 });
 
+test("첫 표시는 정수부를 모두 남기고 소수만 유효 자리를 제한한다", () => {
+  // 고치기 전(이 PR 의 앞 커밋)에는 toPrecision(6) 이 큰 값의 정수부를 반올림했다 (123456.789 → "123457")
+  assert.equal(formatDimensionInput(123456.789), "123456.789");
+  assert.equal(formatDimensionInput(1234567.25), "1234567.25");
+  assert.equal(formatDimensionInput(37.45678912), "37.456789");
+  assert.equal(formatDimensionInput(0.0123456789), "0.0123457");
+  assert.equal(formatDimensionInput(40), "40.00");
+  assert.equal(confirmUnchanged("MMGS", 123456.789), 123456.789);
+});
+
+test("입력 글자가 처음 표시한 글자와 같을 때만 원래 값을 쓰고, 다르게 친 값은 반영한다", () => {
+  // 고치기 전(이 PR 의 앞 커밋)에는 숫자로 비교해, 표시값 "12.3457" 을 일부러 "12.34570" 으로 쳐도
+  // 원래 값(12.3456999)을 썼고, "12.3457abc" 도 parseFloat 로 통과해 원래 값으로 확정됐다
+  const mm = fromDisplay("MMGS");
+  const initialText = formatDimensionInput(toDisplay("MMGS", 12.3456999));
+  assert.equal(initialText, "12.3457");
+  assert.equal(resolveDimensionInput(" 12.3457 ", initialText, 12.3456999, "distance", mm), 12.3456999);
+  assert.equal(resolveDimensionInput("12.34570", initialText, 12.3456999, "distance", mm), 12.3457);
+  assert.equal(resolveDimensionInput("12.3457abc", initialText, 12.3456999, "distance", mm), null);
+  assert.equal(resolveDimensionInput("40abc", initialText, 12.3456999, "distance", mm), null);
+});
+
 test("값을 바꾸지 않고 OK 하면 각도 치수가 원래 값 그대로다", () => {
   const initialText = formatDimensionInput(37.4567);
   assert.equal(resolveDimensionInput(initialText, initialText, 37.4567, "angle", (v) => v), 37.4567);
