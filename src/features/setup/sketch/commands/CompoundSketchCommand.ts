@@ -188,16 +188,21 @@ export class CompoundSketchCommand implements GeometryCommand {
 
     switch (cloned.type) {
       case "coincident":
+      case "horizontal_pp":
+      case "vertical_pp":
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB);
         break;
       case "horizontal":
       case "vertical":
+      case "line_angle":
         fullyMapped = remapGeomRef(cloned.line);
         break;
       case "fix":
         fullyMapped = remapPointRef(cloned.point);
         break;
       case "distance":
+      case "horizontal_distance":
+      case "vertical_distance":
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB);
         break;
       case "equal":
@@ -222,23 +227,53 @@ export class CompoundSketchCommand implements GeometryCommand {
         fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.circle);
         break;
       case "radius":
+      case "diameter":
         fullyMapped = remapGeomRef(cloned.circle);
         break;
       case "equal_radius":
+      case "circle_circle_distance":
         fullyMapped = remapGeomRef(cloned.circleA) && remapGeomRef(cloned.circleB);
         break;
       case "line_length":
         fullyMapped = remapGeomRef(cloned.line);
         break;
       case "angle":
+      case "line_line_distance":
         fullyMapped = remapGeomRef(cloned.lineA) && remapGeomRef(cloned.lineB);
         break;
       case "point_line_distance":
         fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.line);
         break;
+      case "point_circle_distance":
+        fullyMapped = remapPointRef(cloned.point) && remapGeomRef(cloned.circle);
+        break;
+      case "line_circle_distance":
+        fullyMapped = remapGeomRef(cloned.line) && remapGeomRef(cloned.circle);
+        break;
+      case "arc_length":
+        fullyMapped = remapGeomRef(cloned.arc);
+        break;
+      case "ellipse_major_radius":
+      case "ellipse_minor_radius":
+        fullyMapped = remapGeomRef(cloned.ellipse);
+        break;
+      case "curve_length":
+        fullyMapped = remapGeomRef(cloned.curve);
+        break;
       case "symmetric":
         fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB) && remapGeomRef(cloned.axis);
         break;
+      case "symmetric_point":
+      case "equidistant":
+        fullyMapped = remapPointRef(cloned.pointA) && remapPointRef(cloned.pointB) && remapPointRef(cloned.center);
+        break;
+      case "fix_together":
+        fullyMapped = cloned.elements.every(remapGeomRef);
+        break;
+      default:
+        // 모르는 타입은 참조를 옮길 수 없으니 cascade 삭제한다(undo 때 원본 복원). 그대로 두면 지워진 기하를
+        // 가리키는 고아 구속이 store·SpecTree·파일에 남는다.
+        fullyMapped = false;
     }
 
     if (fullyMapped) {
