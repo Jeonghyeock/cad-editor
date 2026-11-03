@@ -60,11 +60,33 @@ export class GlobalHistoryManager {
   // --- 기하 커맨드 직접 실행 (execute 호출 포함) ---
 
   executeGeometryCommand(command: GeometryCommand, store: SketchGeometryStore): void {
-    if (command.isEmpty?.()) return;
-    this._truncateFuture();
+    this.tryExecuteGeometryCommand(command, store, () => true);
+  }
+
+  /**
+   * 명령을 실행·솔브해 본 뒤 accept 가 받아들일 때만 히스토리에 넣는다. 거부하면 명령을 되돌리고 좌표도 실행
+   * 전으로 돌리며 스택은 건드리지 않는다 — 실행 후 undo 하는 방식은 redo 이력을 잘라 버리고, 거부된 명령을
+   * redo 자리에 남겨 Ctrl+Y 로 검증 없이 들어가게 했다. 반환: 받아들였는지 여부.
+   */
+  tryExecuteGeometryCommand(
+    command: GeometryCommand,
+    store: SketchGeometryStore,
+    accept: (store: SketchGeometryStore) => boolean,
+  ): boolean {
+    if (command.isEmpty?.()) return true;
     const before = snapshotGeometries(store);
     command.execute(store);
     store.solveConstraints();
+    if (!accept(store)) {
+      command.undo(store);
+      restoreGeometries(store, before);
+      store.solveConstraints();
+      store.recomputeFaces();
+      store.markGeometryChanged();
+      store.requestRender();
+      return false;
+    }
+    this._truncateFuture();
     const after = snapshotGeometries(store);
     store.recomputeFaces();
     store.markGeometryChanged();
@@ -72,6 +94,7 @@ export class GlobalHistoryManager {
     this._stack.push({ source: "geometry", command, before, after });
     this._index++;
     this._notifyListeners("push");
+    return true;
   }
 
   // --- 기하 스냅샷 push (execute 호출 안 함 — 드래그 완료 시 현재 상태가 이미 최종) ---
