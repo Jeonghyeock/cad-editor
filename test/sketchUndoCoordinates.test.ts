@@ -71,3 +71,31 @@ test("드래그를 redo 하면, 그 사이 다른 솔브가 옮긴 좌표가 아
   history.redo();
   assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 20, y2: 8 });
 });
+
+test("스스로 전체 스냅샷을 가진 드래그 명령에는 이력 쪽 스냅샷을 만들지 않는다", async () => {
+  // 리뷰 반영 — DragSnapshotCommand 는 드래그 전후 기하 전체를 들고 있는데, 이력이 한 벌 더 복제해 두고 redo 때 덮어썼다
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  const clone = () => new Map([...store.geometries].map(([id, g]) => [id, structuredClone(g)]));
+  const before = clone();
+  store.geometries.set("L", line("L", 0, 0, 20, 8));
+  const cmd = new DragSnapshotCommand(before, clone());
+
+  const original = globalThis.structuredClone;
+  let clones = 0;
+  globalThis.structuredClone = ((value: unknown) => {
+    clones++;
+    return original(value);
+  }) as typeof structuredClone;
+  try {
+    store.pushSnapshot(cmd);
+  } finally {
+    globalThis.structuredClone = original;
+  }
+  assert.equal(clones, 0);
+
+  history.undo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+  history.redo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 20, y2: 8 });
+});

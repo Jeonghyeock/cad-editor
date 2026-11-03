@@ -18,8 +18,8 @@ type GlobalEntry =
       sketchKey: string;
       /** 실행 직전 좌표 — undo 때 되돌린다. 드래그처럼 이미 바뀐 뒤 push 한 엔트리는 없다(명령이 직접 들고 있다). */
       before?: GeometrySnapshot;
-      /** 실행·솔브 직후 좌표 — redo 때 되돌린다. */
-      after: GeometrySnapshot;
+      /** 실행·솔브 직후 좌표 — redo 때 되돌린다. 스냅샷을 직접 들고 있는 커맨드(ownsSnapshot)는 없다. */
+      after?: GeometrySnapshot;
     }
   | { source: "model"; command: GlobalCommand };
 
@@ -48,20 +48,22 @@ export function applyGeometryCommand(
   command: GeometryCommand,
   store: SketchGeometryStore,
   accept: (store: SketchGeometryStore) => boolean,
-): { before: GeometrySnapshot; after: GeometrySnapshot } | null {
-  const before = snapshotGeometries(store);
+): { before?: GeometrySnapshot; after?: GeometrySnapshot } | null {
+  // 스냅샷을 직접 들고 있는 커맨드(ownsSnapshot)는 undo 가 store 를 통째로 되돌리므로 따로 만들지 않는다
+  const own = command.ownsSnapshot === true;
+  const before = own ? undefined : snapshotGeometries(store);
   command.execute(store);
   store.solveConstraints();
   if (!accept(store)) {
     command.undo(store);
-    restoreGeometries(store, before);
+    if (before) restoreGeometries(store, before);
     store.solveConstraints();
     store.recomputeFaces();
     store.markGeometryChanged();
     store.requestRender();
     return null;
   }
-  const after = snapshotGeometries(store);
+  const after = own ? undefined : snapshotGeometries(store);
   store.recomputeFaces();
   store.markGeometryChanged();
   store.requestRender();
@@ -147,8 +149,9 @@ export class GlobalHistoryManager {
 
   pushGeometrySnapshot(command: GeometryCommand, store: SketchGeometryStore): void {
     if (command.isEmpty?.()) return;
-    // 실행 전 좌표는 이미 지나갔다(명령이 직접 들고 있음). redo 때 쓸 지금 좌표만 남긴다.
-    const after = snapshotGeometries(store);
+    // 실행 전 좌표는 이미 지나갔다(명령이 직접 들고 있음). redo 때 쓸 지금 좌표만 남긴다 — 전·후를 모두 들고 있는
+    // 커맨드(ownsSnapshot)면 그것도 만들지 않는다.
+    const after = command.ownsSnapshot ? undefined : snapshotGeometries(store);
     store.recomputeFaces();
     store.markGeometryChanged();
     store.requestRender();
@@ -237,7 +240,7 @@ export class GlobalHistoryManager {
         const store = this._geometryStore;
         if (store) {
           entry.command.execute(store);
-          restoreGeometries(store, entry.after);
+          if (entry.after) restoreGeometries(store, entry.after);
           store.solveConstraints();
           store.recomputeFaces();
           store.markGeometryChanged();
