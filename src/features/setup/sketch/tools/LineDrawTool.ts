@@ -34,31 +34,37 @@ export class LineDrawTool extends DrawTool {
   private _startPos: { x: number; y: number } | null = null;
   // 시작점 스냅 정보 (auto-coincident 구속 생성용)
   private _startSnap: SnapResult = null;
-  // 지금 찍는 점이 입력 패널 값(H/V, L/A)에서 왔는지 — 그런 점은 값 그대로 쓴다(_placeFromInput)
-  private _fromInput = false;
 
   onPointerDown(
     store: SketchGeometryStore,
     _rawPos: { x: number; y: number },
     snappedPos: { x: number; y: number },
   ): void {
-    // 입력 패널 값은 커서 위치와 무관하므로, 커서가 잡은 스냅 결과로 자동 구속을 만들지 않는다
-    const snap = this._fromInput ? null : store.snapResult;
+    this._place(store, snappedPos, false);
+  }
+
+  // 점 하나를 찍는다 — 시작점이 없으면 시작점, 있으면 끝점으로 선을 확정한다. 마우스 클릭(onPointerDown)과
+  // 입력 패널 값(applyInputValues)이 함께 쓴다. fromInput 인 점은 값이 곧 좌표라 H/V·평행·수직 보정을 하지 않고,
+  // 커서 위치의 스냅 결과로 자동 구속도 만들지 않는다 — 그러면 L=100, A=2 가 0° 수평선으로, 30° 선 옆의 A=33 이
+  // 30° 평행선으로 바뀌었다. 다만 입력값 그대로 정확히 축과 나란한 선은 마우스로 그린 선처럼 H/V 구속을 붙인다.
+  private _place(store: SketchGeometryStore, pos: { x: number; y: number }, fromInput: boolean): void {
+    const snap = fromInput ? null : store.snapResult;
     if (!this._startPos) {
       // 첫 클릭: 시작점 설정 + 스냅 정보 캡처
-      this._startPos = { ...snappedPos };
+      this._startPos = { ...pos };
       this._startSnap = snap;
     } else {
       // 두 번째 클릭: H/V 스냅 우선, H/V 미발동 시 parallel/perpendicular/colinear 추론.
-      // 입력 패널 값으로 들어온 끝점은 입력한 길이·각도를 지키도록 두 보정을 모두 건너뛴다.
       const endSnap = snap;
-      const hvResult = this._fromInput ? { pos: snappedPos, snapDir: null } : this._applyHVSnap(snappedPos);
+      const hvResult = fromInput
+        ? { pos, snapDir: this._exactAxisDir(this._startPos, pos) }
+        : this._applyHVSnap(pos);
       let snapped = hvResult.pos;
       const hvFired = hvResult.snapDir !== null;
 
       // CATIA SmartPick: H/V 안 걸린 경우 기존 line 과 평행/수직/공선 자동 추론.
       let ppResult: ReturnType<typeof this._applyParallelPerpendicularSnap> = null;
-      if (!hvFired && this._startPos && !this._fromInput) {
+      if (!hvFired && this._startPos && !fromInput) {
         ppResult = this._applyParallelPerpendicularSnap(store, this._startPos, snapped);
         if (ppResult) snapped = ppResult.pos;
       }
@@ -273,7 +279,7 @@ export class LineDrawTool extends DrawTool {
     if (!this._startPos) {
       // 시작점 설정: H/V 필요
       if (values.H !== undefined && values.V !== undefined) {
-        this._placeFromInput(store, { x: values.H, y: values.V });
+        this._place(store, { x: values.H, y: values.V }, true);
         return true;
       }
       return false;
@@ -283,25 +289,24 @@ export class LineDrawTool extends DrawTool {
       const rad = values.A * Math.PI / 180;
       const endX = this._startPos.x + values.L * Math.cos(rad);
       const endY = this._startPos.y + values.L * Math.sin(rad);
-      this._placeFromInput(store, { x: endX, y: endY });
+      this._place(store, { x: endX, y: endY }, true);
       return true;
     }
     if (values.H !== undefined && values.V !== undefined) {
-      this._placeFromInput(store, { x: values.H, y: values.V });
+      this._place(store, { x: values.H, y: values.V }, true);
       return true;
     }
     return false;
   }
 
-  // 입력 패널 값으로 점을 찍는다. 값이 곧 좌표라 H/V·평행·수직 보정을 하지 않고, 커서 위치의 스냅 결과로 자동 구속도
-  // 만들지 않는다 — 그러면 L=100, A=2 가 0° 수평선으로, 30° 선 옆의 A=33 이 30° 평행선으로 바뀌었다.
-  private _placeFromInput(store: SketchGeometryStore, pos: { x: number; y: number }): void {
-    this._fromInput = true;
-    try {
-      this.onPointerDown(store, pos, pos);
-    } finally {
-      this._fromInput = false;
-    }
+  // 입력값으로 만든 선이 정확히 축과 나란한지. 부동소수 잔차만 허용한다 — A=90 이면 cos 가 6e-17 이라 x 차가 0 이 아니다.
+  private _exactAxisDir(start: { x: number; y: number }, end: { x: number; y: number }): "h" | "v" | null {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const tol = 1e-9 * Math.max(1, Math.hypot(dx, dy));
+    if (Math.abs(dy) <= tol && Math.abs(dx) > tol) return "h";
+    if (Math.abs(dx) <= tol && Math.abs(dy) > tol) return "v";
+    return null;
   }
 
   cancel(): void {
