@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { planeKeyFromSketchPlane } from "src/features/setup/rendering/SketchPlaneManager";
 import {
+  canSetReferencePlanes,
   enterSketchModeAtom,
   exitSketchModeAtom,
   setupGlobalHistoryAtom,
@@ -149,4 +150,27 @@ test("스케치를 열고 닫을 때 알리는 canUndo 가 새 스케치 상태�
   store.set(enterSketchModeAtom, { planeKey, planeName: "Sketch 1" });
   store.set(exitSketchModeAtom);
   assert.deepEqual(seen, [false, true]);
+});
+
+test("스케치·연산이 쓰는 평면은 처음 지울 때도 지우지 않고 false 를 돌려준다", async () => {
+  // 리뷰 반영(2차) — SpecTree 우클릭 Delete 가 가드 없이 지워, 삭제를 undo 한 뒤의 redo 는 막히는데 첫 삭제는 되었다.
+  // SpecTree 는 같은 setter(useHistoricalAtom + canSetReferencePlanes)를 쓰고, false 면 toast 로 이유를 알린다.
+  const { history, planeKey } = await createPlaneViaPanel("delete-guard");
+  const id = store.get(setupReferencePlanesAtom)[0].id;
+  const { useHistoricalAtom } = await import("src/features/setup/hooks/useHistoricalAtom");
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- React 없이 훅이 만든 setter 만 부른다
+  const [, setPlanes] = useHistoricalAtom(setupReferencePlanesAtom, "referencePlanes", canSetReferencePlanes);
+
+  store.set(setupSketchEntriesAtom, [{ planeKey, planeName: "Sketch 1" } as never]);
+  assert.equal(setPlanes((prev) => prev.filter((p) => p.id !== id)), false);
+  assert.equal(store.get(setupReferencePlanesAtom).length, 1);
+
+  // 막힌 삭제는 이력에도 남지 않는다 — 쓰는 것이 없어지면 undo 는 평면 생성을 되돌린다
+  store.set(setupSketchEntriesAtom, []);
+  assert.equal(history.undo(), "model");
+  assert.equal(store.get(setupReferencePlanesAtom).length, 0);
+  history.redo();
+
+  assert.equal(setPlanes((prev) => prev.filter((p) => p.id !== id)), true);
+  assert.equal(store.get(setupReferencePlanesAtom).length, 0);
 });
