@@ -12,6 +12,7 @@ import type { SketchConstraint } from "../sketch/constraints/SketchConstraint.ty
 import { isDimensionalConstraint } from "../sketch/constraints/SketchConstraint.type";
 import { makePointKey } from "../sketch/constraints/SketchConstraintSolver";
 import type { SketchGeometryStore } from "../sketch/SketchGeometryStore";
+import { isReferenceId } from "../sketch/SketchGeometryStore";
 import type { DrawTool } from "../sketch/tools/DrawTool";
 import { getVertexCoord } from "../utils/geometryUtils";
 
@@ -177,16 +178,19 @@ export const useDragController = (
         const ids = drag.vertexHandle ? [drag.vertexHandle.geomId] : drag.ids;
         for (const id of ids) {
           const g = selectStore.geometries.get(id);
-          // 원점·축 같은 참조 기하는 선택에 섞여 있어도 옮기지 않는다 — 스냅샷에서 빼면 아래 이동·재적용이 건너뛴다.
+          // 원점·축 같은 참조 기하는 옮기지 않는다 — 스냅샷에서 빼면 아래 이동·재적용이 건너뛴다. 포인터 핸들러가
+          // drag.ids 에서 이미 빼지만 다른 경로로 들어와도 지킨다.
           // (축은 좌표가 없어 translateGeometry 가 undefined 를 저장해 솔버·직렬화가 깨졌고, 원점은 (0,0) 을 벗어났다)
-          if (g && !("isReference" in g && g.isReference)) drag.geoSnapshot.set(id, structuredClone(g));
+          if (g && !isReferenceId(id)) drag.geoSnapshot.set(id, structuredClone(g));
         }
-        // vertex 드래그: coincident 체인(전이적)으로 연결된 모든 기하를 스냅샷에 포함
+        // vertex 드래그: coincident 체인(전이적)으로 연결된 모든 기하를 스냅샷에 포함.
+        // 참조 기하(원점 등)는 넣지 않는다 — 솔브 뒤 쌍이 깨졌을 때의 재적용 경로가 스냅샷에 있는 체인 멤버를
+        // 모두 moveVertex 로 옮겨, 원점과 coincident 인 꼭짓점을 끌면 원점이 (0,0) 을 떠났다.
         if (drag.vertexHandle && selectStore.constraintStore) {
           const vhKey = makePointKey(drag.vertexHandle.geomId, drag.vertexHandle.vertexIndex);
           const chain = findCoincidentChain(vhKey, selectStore.constraintStore.constraints);
           for (const pt of chain) {
-            if (!drag.geoSnapshot.has(pt.geomId)) {
+            if (!drag.geoSnapshot.has(pt.geomId) && !isReferenceId(pt.geomId)) {
               const pg = selectStore.geometries.get(pt.geomId);
               if (pg) drag.geoSnapshot.set(pt.geomId, structuredClone(pg));
             }
@@ -233,8 +237,7 @@ export const useDragController = (
           const chain = findCoincidentChain(vhKey, selectStore.constraintStore.constraints);
           for (const pt of chain) {
             if (pt.geomId === vh.geomId && pt.vertexIndex === vh.vertexIndex) continue;
-            const ptGeom = selectStore.geometries.get(pt.geomId);
-            if (ptGeom && "isReference" in ptGeom && ptGeom.isReference) continue;
+            if (isReferenceId(pt.geomId)) continue;
             const pOriginal = drag.geoSnapshot.get(pt.geomId);
             if (pOriginal) {
               selectStore.geometries.set(pt.geomId, moveVertex(pOriginal, pt.vertexIndex, totalDx, totalDy));
@@ -278,8 +281,7 @@ export const useDragController = (
           if (selectStore.constraintStore) {
             const chain = findCoincidentChain(vhKey, selectStore.constraintStore.constraints);
             for (const pt of chain) {
-              const ptGeom = selectStore.geometries.get(pt.geomId);
-              if (ptGeom && "isReference" in ptGeom && ptGeom.isReference) continue;
+              if (isReferenceId(pt.geomId)) continue;
               fixedKeys.add(makePointKey(pt.geomId, pt.vertexIndex));
             }
           }
