@@ -30,6 +30,7 @@ export async function createSketch(): Promise<SketchGeometryStore> {
   constraintStore.addMutationListener(() => solver.invalidateCache());
   const history = new GlobalHistoryManager();
   history.setGeometryStore(store);
+  history.setActiveSketch("XY"); // 이력은 열린 스케치의 명령만 기록한다
   store.globalHistory = history;
   store.injectReferenceGeometry();
   return store;
