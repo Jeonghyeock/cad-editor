@@ -311,11 +311,13 @@ export class SceneManager {
 
   zoomToFit(): void {
     const box = new THREE.Box3();
-    // 모든 가시 메시의 바운딩 박스 계산
-    this.scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.visible) {
-        box.expandByObject(obj);
-      }
+    // 화면에 보이는 메시만 바운딩 박스에 넣는다. traverseVisible 은 숨긴 부모(group 만 숨긴 STEP 모델 등) 아래를
+    // 건너뛰고, material.visible=false 인 보조 메시(스케치 raycast 전용 10000×10000 평면)는 그려지지 않으므로 뺀다.
+    // 이것들이 섞이면 스케치 모드 Home 에서 ortho halfH 가 6000 이 되어 스케치가 점처럼 작아졌다.
+    this.scene.traverseVisible((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const materials: THREE.Material[] = Array.isArray(obj.material) ? obj.material : [obj.material];
+      if (materials.some((m) => m.visible)) box.expandByObject(obj);
     });
     if (box.isEmpty()) return;
 
