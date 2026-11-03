@@ -136,3 +136,17 @@ test("평면에 저장된 스케치나 연산이 있으면 평면 생성을 undo
   assert.equal(history.undo(), "model");
   assert.equal(store.get(setupReferencePlanesAtom).length, 0);
 });
+
+test("스케치를 열고 닫을 때 알리는 canUndo 가 새 스케치 상태로 계산된다", async () => {
+  // 리뷰 반영(2차) — enterSketchModeAtom 이 viewState.sketchPlaneKey 를 쓰기 전에 이력에 알려, 'sketch' 이벤트 때
+  // canUndo 가 옛 상태로 계산됐다(버튼이 켜졌는데 눌러도 아무 일 없음)
+  const { history, planeKey } = await createPlaneViaPanel("event-order");
+  const seen: boolean[] = [];
+  history.addRenderListener((event) => {
+    if (event === "sketch") seen.push(history.canUndo);
+  });
+
+  store.set(enterSketchModeAtom, { planeKey, planeName: "Sketch 1" });
+  store.set(exitSketchModeAtom);
+  assert.deepEqual(seen, [false, true]);
+});
