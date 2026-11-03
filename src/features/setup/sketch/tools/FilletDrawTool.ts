@@ -164,9 +164,10 @@ export class FilletDrawTool extends DrawTool {
     const cx = P.x + uBis.x * centerDist;
     const cy = P.y + uBis.y * centerDist;
 
-    // 호 각도
-    const startAngle = Math.atan2(tp1.y - cy, tp1.x - cx);
-    const endAngle = Math.atan2(tp2.y - cy, tp2.x - cx);
+    // 호 각도. 순서가 바뀌면(swapped) tp1 은 호의 끝점(vertex 2), tp2 는 시작점(vertex 1)에 놓인다
+    const { startAngle, endAngle, swapped } = this._filletArcAngles(dir1, dir2, tp1, tp2, cx, cy);
+    const arcVertexAtTp1 = swapped ? 2 : 1;
+    const arcVertexAtTp2 = swapped ? 1 : 2;
 
     // 새 기하 생성 + 구속 재매핑
     const newGeoms: SerializedGeometry[] = [];
@@ -226,7 +227,7 @@ export class FilletDrawTool extends DrawTool {
         type: "coincident",
         id: generateConstraintId("auto-cst-fillet"),
         pointA: { geomId: result1.geom.id, vertexIndex: 1 },
-        pointB: { geomId: arcId, vertexIndex: 1 },
+        pointB: { geomId: arcId, vertexIndex: arcVertexAtTp1 },
       });
       addedConstraints.push({
         type: "tangent",
@@ -240,7 +241,7 @@ export class FilletDrawTool extends DrawTool {
         type: "coincident",
         id: generateConstraintId("auto-cst-fillet"),
         pointA: { geomId: result2.geom.id, vertexIndex: 1 },
-        pointB: { geomId: arcId, vertexIndex: 2 },
+        pointB: { geomId: arcId, vertexIndex: arcVertexAtTp2 },
       });
       addedConstraints.push({
         type: "tangent",
@@ -255,7 +256,7 @@ export class FilletDrawTool extends DrawTool {
       addedConstraints.push({
         type: "coincident",
         id: generateConstraintId("auto-cst-fillet-notrim"),
-        pointA: { geomId: arcId, vertexIndex: 1 },
+        pointA: { geomId: arcId, vertexIndex: arcVertexAtTp1 },
         pointB: { geomId: line1.id, vertexIndex: keepDir1 > 0 ? 1 : 0 },
       });
     }
@@ -263,7 +264,7 @@ export class FilletDrawTool extends DrawTool {
       addedConstraints.push({
         type: "coincident",
         id: generateConstraintId("auto-cst-fillet-notrim"),
-        pointA: { geomId: arcId, vertexIndex: 2 },
+        pointA: { geomId: arcId, vertexIndex: arcVertexAtTp2 },
         pointB: { geomId: line2.id, vertexIndex: keepDir2 > 0 ? 1 : 0 },
       });
     }
@@ -337,8 +338,7 @@ export class FilletDrawTool extends DrawTool {
     const cx = P.x + uBis.x * centerDist;
     const cy = P.y + uBis.y * centerDist;
 
-    const startAngle = Math.atan2(tp1.y - cy, tp1.x - cx);
-    const endAngle = Math.atan2(tp2.y - cy, tp2.x - cx);
+    const { startAngle, endAngle } = this._filletArcAngles(dir1, dir2, tp1, tp2, cx, cy);
 
     const result: SerializedGeometry[] = [];
 
@@ -578,6 +578,25 @@ export class FilletDrawTool extends DrawTool {
   }
 
   // --- 내부 유틸리티 ---
+
+  // fillet 호의 start/end 각도. 호는 startAngle 에서 CCW 로 endAngle 까지 그려진다.
+  // dir1 에서 dir2 로 CCW 로 도는 꼭짓점(cross(dir1, dir2) > 0)에서 tp1→tp2 순서로 두면 꼭짓점 바깥을 도는
+  // 270° 호가 되므로, 그때는 tp2 를 시작점으로 둔다(swapped). 프리뷰와 확정이 같은 기준을 쓴다.
+  private _filletArcAngles(
+    dir1: { x: number; y: number },
+    dir2: { x: number; y: number },
+    tp1: { x: number; y: number },
+    tp2: { x: number; y: number },
+    cx: number,
+    cy: number,
+  ): { startAngle: number; endAngle: number; swapped: boolean } {
+    const angle1 = Math.atan2(tp1.y - cy, tp1.x - cx);
+    const angle2 = Math.atan2(tp2.y - cy, tp2.x - cx);
+    const swapped = dir1.x * dir2.y - dir1.y * dir2.x > 0;
+    return swapped
+      ? { startAngle: angle2, endAngle: angle1, swapped }
+      : { startAngle: angle1, endAngle: angle2, swapped };
+  }
 
   // 프리뷰용 트림된 line 계산 (keepDir 기반)
   private _computeTrimmedLine(
