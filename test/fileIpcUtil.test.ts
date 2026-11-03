@@ -200,3 +200,26 @@ test("이미 연 파일은 디스크에서 다시 읽지 않고 그 탭으로 �
   assert.equal(await fileIpcUtil.openFile(true, a), true);
   assert.equal(fileIpcUtil.getFileId(), fileIdA);
 });
+
+test("링크(정션)를 거친 경로로 다시 열어도 같은 파일로 보고 그 탭으로 바꾼다", async () => {
+  // 고치기 전에는 경로 문자열만 비교해, 링크를 거친 경로는 다른 파일로 보고 같은 파일을 탭 둘에 열었다
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const real = path.join(dir, "real");
+  const link = path.join(dir, "link");
+  fs.mkdirSync(real);
+  writeCad(path.join(real, "a.cad"), { fileId: "a" });
+  writeCad(path.join(real, "b.cad"), { fileId: "b" });
+  // Windows 의 정션은 관리자 권한 없이 만들 수 있다(다른 OS 에서는 디렉터리 심볼릭 링크)
+  fs.symlinkSync(real, link, "junction");
+
+  assert.ok(await fileIpcUtil.openFile(true, path.join(real, "a.cad")));
+  const fileIdA = fileIpcUtil.getFileId();
+  assert.ok(await fileIpcUtil.openFile(true, path.join(link, "a.cad")));
+
+  assert.equal(fileIpcUtil.getOpenFileList().length, 1);
+  assert.equal(fileIpcUtil.getFileId(), fileIdA);
+
+  const { isSameFilePath } = await import("src/app/ipc/fileIpcUtil");
+  assert.ok(!isSameFilePath(path.join(link, "a.cad"), path.join(real, "b.cad")));
+});

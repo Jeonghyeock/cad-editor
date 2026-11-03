@@ -12,13 +12,22 @@ import type {
 } from "src/shared/types/File.type";
 
 /**
- * 두 경로가 같은 파일을 가리키는지 본다. 절대 경로로 정규화해 비교하고, Windows 는 대소문자를 가리지 않는다.
+ * 두 경로가 같은 파일을 가리키는지 본다.
+ * 둘 다 있으면 실제 경로(realpath)로 비교해 심볼릭 링크·정션, macOS 의 대소문자 무시 볼륨, Windows 8.3 짧은
+ * 이름도 같은 파일로 본다. 하나라도 없으면(이름이 바뀐 열린 파일 등) 절대 경로 문자열로 비교하고, Windows 는
+ * 대소문자를 가리지 않는다.
  */
 export const isSameFilePath = (
   a: string,
   b: string,
   platform: NodeJS.Platform = process.platform,
 ) => {
+  try {
+    return fs.realpathSync.native(a) === fs.realpathSync.native(b);
+  } catch {
+    // 없는 경로 — 아래 문자열 비교로
+  }
+
   const pathModule = platform === "win32" ? path.win32 : path.posix;
   const normalize = (filePath: string) => {
     const resolved = pathModule.resolve(filePath);
