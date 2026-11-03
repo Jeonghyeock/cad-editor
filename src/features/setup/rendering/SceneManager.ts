@@ -617,6 +617,17 @@ export class SceneManager {
         this._cameraAnimId = requestAnimationFrame(animateStep);
       } else {
         this._cameraAnimId = null;
+        // 궤도 회전(OrbitControls)은 생성 때의 up (0,1,0) 을 축으로 돌고 lookAt 은 camera.up 을 쓴다. ViewCube 가
+        // 바꾼 up 을 남겨 두면 이후 회전에서 화면이 90° 눕거나 뒤집히므로 원래 up 으로 되돌린다. 위·아래 뷰는
+        // 시선이 up 과 평행해 lookAt 이 화면 방향을 정하지 못하므로, ViewCube 가 정한 화면 위쪽(up)의 반대편으로
+        // 아주 조금(1e-3 rad) 비켜 같은 화면을 유지한다.
+        this._perspCamera.up.set(0, 1, 0);
+        if (Math.abs(direction.dot(this._perspCamera.up)) > 1 - 1e-6) {
+          const tilted = direction.clone().addScaledVector(up, -1e-3).normalize();
+          this._perspCamera.position.copy(target).addScaledVector(tilted, dist);
+        }
+        this._perspCamera.lookAt(target);
+        this.controls.update();
         // 마지막 frame — controls.update 가 change emit 안 할 수 있어 명시적으로 예약.
         this.requestRender();
       }
