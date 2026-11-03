@@ -90,6 +90,8 @@ export class GlobalHistoryManager {
   private _geometryStore: SketchGeometryStore | null = null;
   // 지금 열린 스케치 (`planeKey#세대`, 3D 모드면 null). 기하 store 는 열린 스케치 하나의 기하만 담는다.
   private _activeSketchKey: string | null = null;
+  // 지금 열린 스케치의 평면 (세대 없이) — 스케치 삭제 undo/redo 가드용 (isPlaneOpen)
+  private _activePlaneKey: string | null = null;
   // 평면마다 스케치를 지운 횟수 — planeKey 만으로는 같은 평면에서 지우고 새로 만든 스케치를 같은 스케치로 본다(지운
   // 스케치의 드래그 엔트리가 새 스케치를 지웠다). 스케치 키를 `planeKey#세대` 로 써서 둘을 가른다. 세대는 메모리에만
   // 둔다 — 파일을 다시 열면 히스토리도 새로 시작한다.
@@ -106,9 +108,15 @@ export class GlobalHistoryManager {
    * 열린 스케치는 진입할 때의 세대로 정한다 — 열어 둔 채 그 스케치를 지워도 지금 store 의 엔트리는 그대로 이어진다.
    */
   setActiveSketch(planeKey: string | null): void {
+    this._activePlaneKey = planeKey || null;
     this._activeSketchKey = planeKey ? `${planeKey}#${this._sketchGenerations.get(planeKey) ?? 0}` : null;
     // 스택은 그대로지만 막힌 엔트리가 바뀌어 canUndo/canRedo 가 달라질 수 있다
     this._notifyListeners("sketch");
+  }
+
+  /** 이 평면의 스케치가 지금 열려 있는지 (세대와 무관) — DeleteSketchCommand 의 undo/redo 가드 */
+  isPlaneOpen(planeKey: string): boolean {
+    return this._activePlaneKey === planeKey;
   }
 
   /** 스케치를 지울 때 (DeleteSketchCommand.execute) — 이 평면에 새로 여는 스케치는 다른 스케치로 본다. */
