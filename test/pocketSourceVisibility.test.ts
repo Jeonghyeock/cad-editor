@@ -83,3 +83,17 @@ test("Pocket 을 지우면 operations 동기화가 원본 솔리드를 다시 �
   manager.setExtrudedSolidVisible("op1", true);
   assert.equal(visible("op1"), true);
 });
+
+test("Pocket 이 소비한 원본을 다시 만들어도 숨긴 채로 둔다", async () => {
+  // 고치기 전에는 소비 기록을 가시성 설정 함수만 봐서, 원본 Pad 를 편집(EditPadCommand)하거나 원본 스케치를
+  // 고쳐 다시 만들면 새 메시가 visible=true 로 들어가 Pocket 구멍을 다시 덮었다
+  const { manager, visible } = await padThenPocket();
+  await manager.addExtrudedSolid({ ...pad, depth: 12 }, geometriesOf("disk"));
+  assert.equal(visible("op1"), false);
+  assert.equal(visible("op2"), true);
+
+  // 원본 스케치 수정 → rebuildOperationsForSketch (addExtrudedSolid 를 기다리지 않는다)
+  manager.rebuildOperationsForSketch("disk", [{ operation: pad, sketchPlaneName: "Sketch 1" }]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(visible("op1"), false);
+});

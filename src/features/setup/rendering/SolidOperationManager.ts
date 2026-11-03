@@ -88,9 +88,13 @@ export class SolidOperationManager implements EntityPicker {
   private _extrudedSolids: Map<string, THREE.Mesh | THREE.Group> = new Map();
   // 후속 Pad/Pocket 의 부울 연산에 소비된 원본 솔리드 — 결과 op id → 원본 op id.
   // 결과 메시가 원본 형상을 담고 있으므로 원본은 계속 숨겨야 한다. 가시성 일괄 복원(스케치 종료,
-  // operations 동기화)이 원본을 다시 보이면 불투명한 원본이 Pocket 구멍을 덮는다.
-  // 결과 솔리드가 지워지면(삭제·undo·재빌드) removeExtrudedSolid 에서 기록도 지운다.
+  // operations 동기화)이나 원본을 다시 만드는 일(편집·스케치 수정 rebuild)이 원본을 다시 보이면
+  // 불투명한 원본이 Pocket 구멍을 덮는다. 기록은 _markConsumed 로만 남기고, 결과 솔리드가 지워지면
+  // (삭제·undo·재빌드) removeExtrudedSolid 에서 지운다.
   private _consumedSources: Map<string, string> = new Map();
+  // 원본 op id → 그 원본을 소비한 결과 수 (_consumedSources 의 역방향). 가시성 동기화가 op 마다
+  // _isConsumed 를 부르므로 전체를 훑지 않고 바로 찾는다.
+  private _consumerCount: Map<string, number> = new Map();
   // 돌출 프리뷰 (생성 중 라이브 표시)
   private _extrudePreview: THREE.Mesh | null = null;
   // 3D viewport hover / select 시 emissive overlay (atom SSOT — input/index.tsx 의 useEffect
@@ -188,14 +192,12 @@ export class SolidOperationManager implements EntityPicker {
         const csgOp = operation.type === "pad" ? ADDITION : SUBTRACTION;
         const resultMesh = this._performCSGOperation(sourceMesh, toolMesh, csgOp);
         if (resultMesh) {
-          sourceMesh.visible = false;
-          this._consumedSources.set(operation.id, operation.targetOperationId);
           toolMesh.geometry.dispose();
           if (toolMesh.material instanceof THREE.Material) toolMesh.material.dispose();
           resultMesh.name = `extruded-${operation.id}`;
           resultMesh.userData.sourceOperationId = operation.targetOperationId;
-          this._scene.add(resultMesh);
-          this._extrudedSolids.set(operation.id, resultMesh);
+          this._putSolid(operation.id, resultMesh);
+          this._markConsumed(operation);
           return;
         }
         toolMesh.geometry.dispose();
@@ -209,9 +211,37 @@ export class SolidOperationManager implements EntityPicker {
     }
 
     toolMesh.name = `extruded-${operation.id}`;
-    this._scene.add(toolMesh);
-    this._extrudedSolids.set(operation.id, toolMesh);
+    this._putSolid(operation.id, toolMesh);
     this._notifyChange();
+  }
+
+  // 솔리드 메시를 씬과 목록에 넣는다. 후속 연산에 소비된 원본을 다시 만드는 경우(원본 편집, 원본
+  // 스케치 수정 rebuild, IPC 를 기다린 뒤 추가)에도 숨긴 채로 넣는다 — 보이면 Pocket 구멍을 덮는다.
+  private _putSolid(operationId: string, mesh: THREE.Mesh | THREE.Group): void {
+    mesh.visible = !this._isConsumed(operationId);
+    this._scene.add(mesh);
+    this._extrudedSolids.set(operationId, mesh);
+  }
+
+  // 부울 연산 결과가 _putSolid 로 들어간 뒤에만 부른다 — 원본을 숨기고 소비를 기록한다. 결과를 넣기
+  // 전에 기록하면, 뒤에서(메시 변환 등) 실패했을 때 결과 없이 원본만 사라진다.
+  private _markConsumed(operation: PadPocketOperation): void {
+    const sourceId = operation.targetOperationId;
+    if (!sourceId) return;
+    this._unmarkConsumed(operation.id);
+    this._consumedSources.set(operation.id, sourceId);
+    this._consumerCount.set(sourceId, (this._consumerCount.get(sourceId) ?? 0) + 1);
+    const sourceMesh = this._extrudedSolids.get(sourceId);
+    if (sourceMesh) sourceMesh.visible = false;
+  }
+
+  private _unmarkConsumed(consumerId: string): void {
+    const sourceId = this._consumedSources.get(consumerId);
+    if (sourceId === undefined) return;
+    this._consumedSources.delete(consumerId);
+    const count = (this._consumerCount.get(sourceId) ?? 1) - 1;
+    if (count > 0) this._consumerCount.set(sourceId, count);
+    else this._consumerCount.delete(sourceId);
   }
 
   private async _tryFeatureTreeExtrude(
@@ -279,16 +309,13 @@ export class SolidOperationManager implements EntityPicker {
       const mesh = nativeMeshToThreeMesh(finalFeature.mesh!);
       mesh.name = `extruded-${operation.id}`;
       mesh.userData = { occtHandle: finalFeature.outputHandle };
-      this._scene.add(mesh);
-      this._extrudedSolids.set(operation.id, mesh);
+      this._putSolid(operation.id, mesh);
       this._opToFeatureId.set(operation.id, finalFeature.id);
       this._notifyChange();
 
       // source solid 숨기기
       if (operation.targetOperationId) {
-        const sourceMesh = this._extrudedSolids.get(operation.targetOperationId);
-        if (sourceMesh) sourceMesh.visible = false;
-        this._consumedSources.set(operation.id, operation.targetOperationId);
+        this._markConsumed(operation);
         mesh.userData.sourceOperationId = operation.targetOperationId;
       }
 
@@ -385,15 +412,14 @@ export class SolidOperationManager implements EntityPicker {
       const prismResult = await buildPrismNative(profileGeoms, extrudePlane, depth, dir);
 
       let finalResult: NativeMeshResult = prismResult;
+      let consumedSource = false;
       if (operation.targetOperationId) {
         const sourceHandle = operationShapeHandles.get(operation.targetOperationId);
         if (sourceHandle != null) {
           const boolOp = operation.type === "pad" ? "fuse" : "cut";
           const boolResult = await performBooleanNative(sourceHandle, prismResult.shapeHandle, boolOp);
           finalResult = boolResult;
-          const sourceMesh = this._extrudedSolids.get(operation.targetOperationId);
-          if (sourceMesh) sourceMesh.visible = false;
-          this._consumedSources.set(operation.id, operation.targetOperationId);
+          consumedSource = true;
         } else if (operation.type === "pocket") {
           return false;
         }
@@ -404,8 +430,8 @@ export class SolidOperationManager implements EntityPicker {
       if (operation.targetOperationId) {
         mesh.userData.sourceOperationId = operation.targetOperationId;
       }
-      this._scene.add(mesh);
-      this._extrudedSolids.set(operation.id, mesh);
+      this._putSolid(operation.id, mesh);
+      if (consumedSource) this._markConsumed(operation);
       operationShapeHandles.set(operation.id, finalResult.shapeHandle);
       this._notifyChange();
 
@@ -486,8 +512,7 @@ export class SolidOperationManager implements EntityPicker {
       const mesh = nativeMeshToThreeMesh(finalFeature.mesh!);
       mesh.name = `revolved-${operation.id}`;
       mesh.userData = { occtHandle: finalFeature.outputHandle };
-      this._scene.add(mesh);
-      this._extrudedSolids.set(operation.id, mesh);
+      this._putSolid(operation.id, mesh);
       this._opToFeatureId.set(operation.id, finalFeature.id);
       this._notifyChange();
 
@@ -579,8 +604,7 @@ export class SolidOperationManager implements EntityPicker {
 
       const mesh = nativeMeshToThreeMesh(finalResult.mesh);
       mesh.name = `revolved-${operation.id}`;
-      this._scene.add(mesh);
-      this._extrudedSolids.set(operation.id, mesh);
+      this._putSolid(operation.id, mesh);
       operationShapeHandles.set(operation.id, finalResult.shapeHandle);
       this._notifyChange();
 
@@ -591,7 +615,7 @@ export class SolidOperationManager implements EntityPicker {
   }
 
   removeExtrudedSolid(operationId: string): void {
-    this._consumedSources.delete(operationId);
+    this._unmarkConsumed(operationId);
     const existing = this._extrudedSolids.get(operationId);
     if (existing) {
       this._scene.remove(existing);
@@ -864,8 +888,7 @@ export class SolidOperationManager implements EntityPicker {
     if (!mesh) return;
 
     mesh.name = `revolved-${operation.id}`;
-    this._scene.add(mesh);
-    this._extrudedSolids.set(operation.id, mesh);
+    this._putSolid(operation.id, mesh);
     this._notifyChange();
   }
 
@@ -1040,10 +1063,7 @@ export class SolidOperationManager implements EntityPicker {
 
   // 후속 부울 연산의 결과가 이 솔리드를 담고 있는지 (그렇다면 보이게 하면 안 된다)
   private _isConsumed(operationId: string): boolean {
-    for (const sourceId of this._consumedSources.values()) {
-      if (sourceId === operationId) return true;
-    }
-    return false;
+    return this._consumerCount.has(operationId);
   }
 
   /** sketch 진입 시 모든 솔리드 가시성 일괄 토글. 후속 연산에 소비된 원본은 숨긴 채로 둔다. */
@@ -1146,6 +1166,7 @@ export class SolidOperationManager implements EntityPicker {
     }
     this._extrudedSolids.clear();
     this._consumedSources.clear();
+    this._consumerCount.clear();
     this.clearExtrudePreview();
     operationShapeHandles.clear();
     this._notifyChange();
