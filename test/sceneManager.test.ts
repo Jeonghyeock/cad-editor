@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { SceneManager } from "src/features/setup/rendering/SceneManager";
+import { buildPlaneCoordSystem } from "src/features/setup/step/ProfileProjector";
 
 // WebGL 렌더러는 node 에서 만들 수 없어, 그리지 않는 대체물로 바꾼다. 카메라·OrbitControls·Box3 는 실제 three.js 다.
 class FakeRenderer {
@@ -67,7 +68,7 @@ test("zoomToFit 은 숨긴 모델과 보이지 않는 raycast 평면을 빼고 �
   assert.ok(sm.controls.target.length() < 1e-9);
 
   // 스케치(ortho): halfH = maxDim × 0.6
-  sm.switchToOrtho(() => {});
+  sm.switchToOrtho(() => {}, new THREE.Vector3(0, 1, 0));
   sm.zoomToFit();
   assert.ok(Math.abs(sm.orthoCamera.top - 12) < 1e-9, `halfH=${sm.orthoCamera.top}`);
 });
@@ -93,4 +94,28 @@ test("ViewCube 로 위에서 본 뒤 궤도 회전해도 화면이 눕지 않는
   orbit._rotateUp(-0.5);
   sm.controls.update();
   assert.ok(screenUpOf(cam).y > 0.4, `화면 위쪽=${screenUpOf(cam).toArray()}`);
+});
+
+test("스케치 평면이 수평이어도 스케치 H 축은 화면 오른쪽, V 축은 화면 위쪽을 향한다", () => {
+  // 고치기 전에는 ortho 카메라 up 을 perspective 의 (0,1,0) 그대로 써서, 수평 평면(|n.y|≥0.9 라 upHint 가 X)에서
+  // 스케치 축이 화면 기준 90° 돌았다(ZX 평면에서 H=+Z 가 화면 아래). 원점이 아닌 윗면은 법선의 부동소수 잔차에
+  // 따라 임의 각도로 돌았다. 규약(u/v)은 그대로 두고 화면 정렬만 맞춘다.
+  const cases: { name: string; origin: THREE.Vector3; normal: THREE.Vector3 }[] = [
+    { name: "ZX", origin: new THREE.Vector3(0, 0, 0), normal: new THREE.Vector3(0, 1, 0) },
+    { name: "STEP 윗면", origin: new THREE.Vector3(37, 25, -12), normal: new THREE.Vector3(1e-9, 1, -2e-9).normalize() },
+    { name: "아랫면", origin: new THREE.Vector3(0, -5, 0), normal: new THREE.Vector3(0, -1, 0) },
+    { name: "XY", origin: new THREE.Vector3(0, 0, 0), normal: new THREE.Vector3(0, 0, 1) },
+    { name: "YZ", origin: new THREE.Vector3(0, 0, 0), normal: new THREE.Vector3(1, 0, 0) },
+  ];
+  for (const { name, origin, normal } of cases) {
+    // 기준 평면(SketchPlaneManager.getOriginPlaneAsSketchPlane)과 면 스케치가 쓰는 같은 규약 — ZX 는 H=Z, V=X
+    const { u, v } = buildPlaneCoordSystem(normal);
+    const sm = makeSceneManager();
+    sm.placeCameraAtPlane(origin, normal, new Map());
+    sm.switchToOrtho(() => {}, new THREE.Vector3(v.x, v.y, v.z));
+    const cam = sm.orthoCamera;
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+    assert.ok(right.dot(new THREE.Vector3(u.x, u.y, u.z)) > 0.999, `${name}: 화면 오른쪽=${right.toArray()}`);
+    assert.ok(screenUpOf(cam).dot(new THREE.Vector3(v.x, v.y, v.z)) > 0.999, `${name}: 화면 위쪽=${screenUpOf(cam).toArray()}`);
+  }
 });
