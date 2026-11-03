@@ -3,12 +3,14 @@
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ContextMenuItem } from "src/components/ContextMenu";
 import Icon from "src/components/Icon";
 
 import { contextMenuAtom } from "src/shared/stores/App.store";
 import { fileIdAtom } from "src/shared/stores/File.store";
+import { addToastAtom } from "src/shared/stores/Toast.store";
 
 import { useHistoricalAtom } from "../../hooks/useHistoricalAtom";
 import { ORIGIN_PLANE_KEYS } from "../../rendering/SketchPlaneManager";
@@ -256,6 +258,8 @@ const SpecTree = ({
     setupSketchSelectedConstraintIdAtom,
   );
   const setContextMenu = useSetAtom(contextMenuAtom);
+  const addToast = useSetAtom(addToastAtom);
+  const { t } = useTranslation();
 
   const [hoveredModelId, setHoveredModelId] = useState<string | null>(null);
   // visibility 는 per-file 영속 atom 으로 이동 — setupAtom.visibility 에서 derive.
@@ -1053,7 +1057,17 @@ const SpecTree = ({
         setContextMenu({
           visible: true,
           items: [
-            { type: "item" as const, label: "Delete", onClick: () => setReferencePlanes((prev) => prev.filter((p) => p.id !== rp.id)) },
+            {
+              type: "item" as const,
+              label: "Delete",
+              onClick: () => {
+                // 그 평면을 쓰는 스케치·연산이 있으면 setter 가 지우지 않는다 (삭제 undo 뒤 redo 를 막는 것과 같은
+                // canSetReferencePlanes 판정) — 아무 일 없이 끝나지 않게 이유를 알린다.
+                if (!setReferencePlanes((prev) => prev.filter((p) => p.id !== rp.id))) {
+                  addToast({ type: "info", message: t("toast.referencePlaneInUse", { name: rp.name }) });
+                }
+              },
+            },
           ],
           x: e.clientX,
           y: e.clientY,
@@ -1129,6 +1143,8 @@ const SpecTree = ({
     modelNodes,
     setContextMenu,
     setReferencePlanes,
+    addToast,
+    t,
     hoveredReferencePlaneId,
     selectedReferencePlaneId,
     setViewportHover,

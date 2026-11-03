@@ -5,5 +5,6 @@
   "errorBoundary.title": "An unexpected error occurred",
   "errorBoundary.unknown": "Unknown error",
   "errorBoundary.goHome": "Go to Home",
-  "toast.stepImportDiscarded": "\"{{name}}\" was not imported because the open file changed while it was loading. Please import it again."
+  "toast.stepImportDiscarded": "\"{{name}}\" was not imported because the open file changed while it was loading. Please import it again.",
+  "toast.referencePlaneInUse": "\"{{name}}\" was not deleted because a sketch or feature (Pad, etc.) uses it. Delete those first."
 }
