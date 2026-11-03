@@ -81,6 +81,9 @@ static int s_nextDocId = 1;
 static int getLastSolidHandle(const Document& doc, int beforeIndex = -1) {
   int end = (beforeIndex < 0) ? (int)doc.features.size() - 1 : beforeIndex - 1;
   for (int i = end; i >= 0; i--) {
+    // sketch feature 의 outputHandle 은 솔리드가 아니라 스케치 면(face) handle 이다.
+    // 이를 솔리드로 잡으면 Pocket 이 Cut(스케치 면, prism) 으로 빈 결과가 되고, Pad 는 앞 솔리드 대신 면과 합쳐진다
+    if (doc.features[i].type == "sketch") continue;
     if (doc.features[i].outputHandle > 0) return doc.features[i].outputHandle;
   }
   return 0;
