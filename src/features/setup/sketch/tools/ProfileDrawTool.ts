@@ -29,6 +29,13 @@ import { DrawTool } from "./DrawTool";
 const MIN_SEG_LEN = 0.1;
 const CLOSE_THRESHOLD = 5; // 시작점 자동 닫기 거리 (월드 단위, inferenceRadius 기준으로 조정)
 
+// 체인에 넣을 호. 호는 startAngle 에서 CCW 로 그려지므로, 체인이 시계 방향으로 지나가는 호는 start/end 를 바꿔 두고
+// reversed 로 표시한다 — 그때 체인 시작점은 vertex 2, 체인 끝점은 vertex 1 에 놓인다.
+type ProfileArcSegment = {
+  arc: { type: "arc"; cx: number; cy: number; r: number; startAngle: number; endAngle: number };
+  reversed: boolean;
+};
+
 export class ProfileDrawTool extends DrawTool {
   readonly type: SketchDrawToolType = "profile";
 
@@ -42,6 +49,8 @@ export class ProfileDrawTool extends DrawTool {
   private _lastGeomId: string | null = null;
   private _lastVertexIndex = 1; // line=1, arc=2
   private _chainLineIds: string[] = []; // 체인 전체 lineIds (closed loop 시 shape 등록용)
+  // 체인 시작점이 놓인 첫 세그먼트의 vertex (닫기 coincident 대상). line 은 0, 호는 reversed 면 2 아니면 1.
+  private _chainStartRef: { geomId: string; vertexIndex: number } | null = null;
   private _lastDirection: { dx: number; dy: number } | null = null; // 마지막 세그먼트 끝 방향 (탄젠트 연속성)
 
   // 다음 세그먼트 모드 (드래그로 활성화, tangent-arc 명시 모드와 별개)
@@ -102,9 +111,9 @@ export class ProfileDrawTool extends DrawTool {
       // Three Point Arc 모드 프리뷰
       if (this._threePointArcMid) {
         // 중간점 확정 → 3점 호 프리뷰
-        const arc = this._computeThreePointArc(start, this._threePointArcMid, snappedPos);
-        if (arc) {
-          this.preview = { ...arc, id: "__preview__" };
+        const seg = this._computeThreePointArc(start, this._threePointArcMid, snappedPos);
+        if (seg) {
+          this.preview = { ...seg.arc, id: "__preview__" };
         } else {
           // 호 계산 불가 → 폴리라인 프리뷰
           this.preview = { type: "line", id: "__preview__", x1: start.x, y1: start.y, x2: snappedPos.x, y2: snappedPos.y };
@@ -116,9 +125,9 @@ export class ProfileDrawTool extends DrawTool {
     } else if (this.profileMode === "tangent-arc") {
       // Tangent Arc 모드: 이전 방향이 있으면 접선 호 프리뷰
       if (this._lastDirection) {
-        const arc = this._computeTangentArc(start, this._lastDirection, snappedPos);
-        if (arc) {
-          this.preview = { ...arc, id: "__preview__" };
+        const seg = this._computeTangentArc(start, this._lastDirection, snappedPos);
+        if (seg) {
+          this.preview = { ...seg.arc, id: "__preview__" };
         } else {
           this.preview = { type: "line", id: "__preview__", x1: start.x, y1: start.y, x2: snappedPos.x, y2: snappedPos.y };
         }
@@ -137,9 +146,9 @@ export class ProfileDrawTool extends DrawTool {
         };
       } else if (this._nextIsArc && this._lastDirection) {
         // 드래그로 활성화된 탄젠트 호 모드
-        const arc = this._computeTangentArc(start, this._lastDirection, snappedPos);
-        if (arc) {
-          this.preview = { ...arc, id: "__preview__" };
+        const seg = this._computeTangentArc(start, this._lastDirection, snappedPos);
+        if (seg) {
+          this.preview = { ...seg.arc, id: "__preview__" };
         } else {
           this.preview = { type: "line", id: "__preview__", x1: start.x, y1: start.y, x2: snappedPos.x, y2: snappedPos.y };
         }
@@ -188,24 +197,21 @@ export class ProfileDrawTool extends DrawTool {
       if (distToStart < closeThresh) {
         // 닫기 세그먼트의 끝점 ↔ 첫 세그먼트 시작점 closing coincident 정보 사전 계산.
         // _create*Segment 가 같은 BatchCommand 에 포함시켜 undo 원자성 보장.
-        const firstId: string | undefined = this._chainLineIds[0];
-        const firstGeom = firstId ? store.geometries.get(firstId) : undefined;
-        // line: vertex 0 = start. arc: vertex 1 = startPoint (vertex 0 = center).
-        const firstStartVI = firstGeom?.type === "arc" ? 1 : 0;
-        const closingTo = firstId ? { geomId: firstId, vertexIndex: firstStartVI } : null;
+        // 첫 세그먼트가 start/end 를 바꿔 둔 시계 방향 호면 체인 시작점은 vertex 2 다 — 만들 때 기록해 둔 값을 쓴다.
+        const closingTo = this._chainStartRef;
 
         // 현재 모드에 따라 닫기
         if (this.profileMode === "three-point-arc" && this._threePointArcMid) {
-          const arc = this._computeThreePointArc(start, this._threePointArcMid, this._chainStartPos);
-          if (arc) {
-            this._createArcSegment(store, arc, this._chainStartSnap, false, closingTo);
+          const seg = this._computeThreePointArc(start, this._threePointArcMid, this._chainStartPos);
+          if (seg) {
+            this._createArcSegment(store, seg, this._chainStartSnap, false, closingTo);
           } else {
             this._createLineSegment(store, start, this._chainStartPos, this._chainStartSnap, closingTo);
           }
         } else if (this.profileMode === "tangent-arc" && this._lastDirection) {
-          const arc = this._computeTangentArc(start, this._lastDirection, this._chainStartPos);
-          if (arc) {
-            this._createArcSegment(store, arc, this._chainStartSnap, true, closingTo);
+          const seg = this._computeTangentArc(start, this._lastDirection, this._chainStartPos);
+          if (seg) {
+            this._createArcSegment(store, seg, this._chainStartSnap, true, closingTo);
           } else {
             this._createLineSegment(store, start, this._chainStartPos, this._chainStartSnap, closingTo);
           }
@@ -264,11 +270,11 @@ export class ProfileDrawTool extends DrawTool {
       }
     } else if (this._nextIsArc && this._lastDirection) {
       // 드래그로 활성화된 탄젠트 호 모드: 클릭 위치까지 호 생성
-      const arc = this._computeTangentArc(start, this._lastDirection, snappedPos);
-      if (arc && arc.type === "arc") {
-        this._createArcSegment(store, arc, snap, true);
+      const seg = this._computeTangentArc(start, this._lastDirection, snappedPos);
+      if (seg) {
+        this._createArcSegment(store, seg, snap, true);
         this._currentPos = { ...snappedPos };
-        this._updateLastDirectionFromArc(arc, snappedPos);
+        this._updateLastDirectionFromArc(seg, snappedPos);
         this._nextIsArc = false;
       } else {
         this._createLineSegment(store, start, snappedPos, snap);
@@ -297,11 +303,11 @@ export class ProfileDrawTool extends DrawTool {
   ): void {
     if (this._lastDirection) {
       // 이전 세그먼트 방향 존재 → 접선 호 생성
-      const arc = this._computeTangentArc(start, this._lastDirection, snappedPos);
-      if (arc) {
-        this._createArcSegment(store, arc, snap, true);
+      const seg = this._computeTangentArc(start, this._lastDirection, snappedPos);
+      if (seg) {
+        this._createArcSegment(store, seg, snap, true);
         this._currentPos = { ...snappedPos };
-        this._updateLastDirectionFromArc(arc, snappedPos);
+        this._updateLastDirectionFromArc(seg, snappedPos);
       } else {
         // 호 계산 실패 → 직선 폴백
         const segLen = Math.hypot(snappedPos.x - start.x, snappedPos.y - start.y);
@@ -335,11 +341,11 @@ export class ProfileDrawTool extends DrawTool {
       this._threePointArcMid = { ...snappedPos };
     } else {
       // 끝점 확정 (두 번째 클릭) → 3점 호 생성
-      const arc = this._computeThreePointArc(start, this._threePointArcMid, snappedPos);
-      if (arc) {
-        this._createArcSegment(store, arc, snap, false);
+      const seg = this._computeThreePointArc(start, this._threePointArcMid, snappedPos);
+      if (seg) {
+        this._createArcSegment(store, seg, snap, false);
         this._currentPos = { ...snappedPos };
-        this._updateLastDirectionFromArc(arc, snappedPos);
+        this._updateLastDirectionFromArc(seg, snappedPos);
       } else {
         // 호 계산 실패 → 직선 폴백
         const segLen = Math.hypot(snappedPos.x - start.x, snappedPos.y - start.y);
@@ -426,6 +432,7 @@ export class ProfileDrawTool extends DrawTool {
     this._lastVertexIndex = 1;
     this._lastDirection = null;
     this._chainLineIds = [];
+    this._chainStartRef = null;
     this._nextIsArc = false;
     this._threePointArcMid = null;
     this._downPos = null;
@@ -447,6 +454,7 @@ export class ProfileDrawTool extends DrawTool {
     const cmds: GeometryCommand[] = [
       this._addGeometry({ type: "line", id, x1: start.x, y1: start.y, x2: end.x, y2: end.y }),
     ];
+    if (!this._lastGeomId) this._chainStartRef = { geomId: id, vertexIndex: 0 };
 
     if (this._lastGeomId) {
       // 이전 세그먼트와 coincident
@@ -490,19 +498,20 @@ export class ProfileDrawTool extends DrawTool {
   // closingTo: 닫기 세그먼트인 경우 첫 세그먼트 시작점 ref. _createLineSegment 와 동일한 의미.
   private _createArcSegment(
     store: SketchGeometryStore,
-    arcGeom: { type: "arc"; cx: number; cy: number; r: number; startAngle: number; endAngle: number },
+    seg: ProfileArcSegment,
     _endSnap: SnapResult,
     addTangent: boolean,
     closingTo: { geomId: string; vertexIndex: number } | null = null,
   ): void {
     const id = this._generateId();
     const cmds: GeometryCommand[] = [
-      this._addGeometry({ ...arcGeom, id, type: "arc" }),
+      this._addGeometry({ ...seg.arc, id, type: "arc" }),
     ];
     // 체인 현재점에 놓인 호 끝점(joinVi)과 새 체인 끝점(endVi). 시계 방향으로 도는 호는 start/end 를 바꿔 두므로
-    // (_computeTangentArc·_computeThreePointArc) 체인은 vertex 2 에서 들어와 vertex 1 로 나간다.
-    const joinVi = this._currentPos ? this._arcEndVertexAt(arcGeom, this._currentPos) : 1;
-    const endVi = joinVi === 1 ? 2 : 1;
+    // (reversed) 체인은 vertex 2 에서 들어와 vertex 1 로 나간다.
+    const joinVi = seg.reversed ? 2 : 1;
+    const endVi = seg.reversed ? 1 : 2;
+    if (!this._lastGeomId) this._chainStartRef = { geomId: id, vertexIndex: joinVi };
 
     if (this._lastGeomId) {
       // coincident: 이전 세그먼트 끝점 ≡ 체인 현재점에 놓인 호 끝점
@@ -539,23 +548,13 @@ export class ProfileDrawTool extends DrawTool {
     this._chainLineIds.push(id);
   }
 
-  // 호의 두 끝점(vertex 1 = startAngle, vertex 2 = endAngle) 중 p 에 놓인 쪽
-  private _arcEndVertexAt(
-    arc: { cx: number; cy: number; r: number; startAngle: number; endAngle: number },
-    p: { x: number; y: number },
-  ): 1 | 2 {
-    const d1 = Math.hypot(arc.cx + arc.r * Math.cos(arc.startAngle) - p.x, arc.cy + arc.r * Math.sin(arc.startAngle) - p.y);
-    const d2 = Math.hypot(arc.cx + arc.r * Math.cos(arc.endAngle) - p.x, arc.cy + arc.r * Math.sin(arc.endAngle) - p.y);
-    return d1 <= d2 ? 1 : 2;
-  }
-
   // --- 탄젠트 호 계산 (시작점 + 접선 방향 + 끝점) ---
 
   private _computeTangentArc(
     start: { x: number; y: number },
     tangentDir: { dx: number; dy: number },
     end: { x: number; y: number },
-  ): { type: "arc"; cx: number; cy: number; r: number; startAngle: number; endAngle: number } | null {
+  ): ProfileArcSegment | null {
     // 시작점에서 tangentDir 방향이 접선인 호 → 중심은 접선 수직 + 현의 수직이등분선 교차점
     const chordX = end.x - start.x;
     const chordY = end.y - start.y;
@@ -588,12 +587,12 @@ export class ProfileDrawTool extends DrawTool {
     const endAngle = Math.atan2(end.y - cy, end.x - cx);
 
     // 호는 startAngle 에서 CCW 로 endAngle 까지 그려진다. 접선 방향에서 끝점이 오른쪽(cross < 0)이면 시계 방향으로
-    // 도는 호라, start/end 를 바꿔 둔다 — 그대로 두면 반대로 도는 270° 호가 된다. 이때 체인의 시작점은 호의 vertex 2 에
-    // 놓인다(_createArcSegment 가 좌표로 판별).
+    // 도는 호라, start/end 를 바꿔 둔다(reversed) — 그대로 두면 반대로 도는 270° 호가 된다. 이때 체인의 시작점은
+    // 호의 vertex 2 에 놓인다.
     if (tangentDir.dx * chordY - tangentDir.dy * chordX < 0) {
-      return { type: "arc", cx, cy, r, startAngle: endAngle, endAngle: startAngle };
+      return { arc: { type: "arc", cx, cy, r, startAngle: endAngle, endAngle: startAngle }, reversed: true };
     }
-    return { type: "arc", cx, cy, r, startAngle, endAngle };
+    return { arc: { type: "arc", cx, cy, r, startAngle, endAngle }, reversed: false };
   }
 
   // --- 3점 호 계산 (시작점 + 중간점 + 끝점 → 외접원 호) ---
@@ -602,7 +601,7 @@ export class ProfileDrawTool extends DrawTool {
     p1: { x: number; y: number },
     p2: { x: number; y: number },
     p3: { x: number; y: number },
-  ): { type: "arc"; cx: number; cy: number; r: number; startAngle: number; endAngle: number } | null {
+  ): ProfileArcSegment | null {
     // 3점 외접원 중심 계산 (수직이등분선 교차)
     const ax = p1.x, ay = p1.y;
     const bx = p2.x, by = p2.y;
@@ -639,26 +638,26 @@ export class ProfileDrawTool extends DrawTool {
     // 아니면 반대 방향 (startAngle↔endAngle 교환)
     if (endNorm > 0 && midNorm > 0 && midNorm < endNorm) {
       // CCW: start → end 순서 유지
-      return { type: "arc", cx: ux, cy: uy, r, startAngle, endAngle };
+      return { arc: { type: "arc", cx: ux, cy: uy, r, startAngle, endAngle }, reversed: false };
     } else {
-      // CW: start와 end 교환하여 반대 방향 호
-      return { type: "arc", cx: ux, cy: uy, r, startAngle: endAngle, endAngle: startAngle };
+      // CW: start와 end 교환하여 반대 방향 호 (체인 시작점 p1 이 vertex 2 에 놓인다)
+      return { arc: { type: "arc", cx: ux, cy: uy, r, startAngle: endAngle, endAngle: startAngle }, reversed: true };
     }
   }
 
   // --- 호 끝점에서의 접선 방향 업데이트 ---
 
   private _updateLastDirectionFromArc(
-    arc: { cx: number; cy: number; r: number; startAngle: number; endAngle: number },
+    seg: ProfileArcSegment,
     endPos: { x: number; y: number },
   ): void {
-    const rx = endPos.x - arc.cx;
-    const ry = endPos.y - arc.cy;
+    const rx = endPos.x - seg.arc.cx;
+    const ry = endPos.y - seg.arc.cy;
     const rLen = Math.hypot(rx, ry);
     if (rLen > 1e-6) {
       // 체인이 호를 vertex 1→2(CCW)로 지나왔으면 끝 방향은 반지름을 +90° 돌린 쪽이다. start/end 를 바꿔 둔
-      // 시계 방향 호는 체인 끝이 vertex 1 이라 그 반대 방향이다.
-      const sign = this._arcEndVertexAt(arc, endPos) === 2 ? 1 : -1;
+      // 시계 방향 호(reversed)는 체인 끝이 vertex 1 이라 그 반대 방향이다.
+      const sign = seg.reversed ? -1 : 1;
       this._lastDirection = { dx: (-ry / rLen) * sign, dy: (rx / rLen) * sign };
     }
   }
