@@ -49,7 +49,13 @@ class FileIpcUtil {
           });
         }
       } catch {
-        continue;
+        // 읽지 못한 파일(이름 변경·이동·잠김)도 목록에 남긴다. 빼면 renderer 가 목록에 없는 탭으로 보고
+        // 그 탭의 메모리 데이터(미저장 편집 포함)를 지운다. fileContent 가 null 이면 renderer 는 기존 데이터를 둔다.
+        results.push({
+          ...filePath,
+          mtime: null,
+          fileContent: null,
+        });
       }
     }
 
