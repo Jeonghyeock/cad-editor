@@ -35,7 +35,8 @@ export const useGlobalHistory = (onHistoryChange?: () => void) => {
       // "clear" 는 시스템 reset (파일 전환 시 history.clear() 등) — 사용자 의도가 아니므로
       // flushInputSync (onChange) 트리거 skip. 트리거하면 baked sketch 아직 hydrate 안 된
       // 시점에 빈 sketches 가 globalData 에 적혀 originData 와 불일치 → isModified 오탐.
-      if (event === "clear") return;
+      // "sketch" (스케치 진입·종료) 도 스택이 바뀐 게 아니라 버튼 상태만 맞추면 되므로 skip.
+      if (event === "clear" || event === "sketch") return;
       onChangeRef.current?.();
     });
     return unsubscribe;
