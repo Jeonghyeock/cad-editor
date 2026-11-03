@@ -16,6 +16,8 @@ import type {
 // 어떤 인자가 와도 [0,10]³ 상자를 돌려준다 — 이 상자가 결과에 쓰이면 옵션이 무시된 것이다.
 const calls: string[] = [];
 let nextHandle = 1;
+// true 면 부울 연산 결과의 메시가 깨져 와 메시 변환에서 실패한다
+let brokenBoolean = false;
 function nativeBox() {
   const g = new THREE.BoxGeometry(10, 10, 10).translate(5, 5, 5);
   return {
@@ -32,6 +34,7 @@ function nativeBox() {
     ipcRenderer: {
       invoke: async (channel: string) => {
         calls.push(channel);
+        if (brokenBoolean && channel === OcctChannels.PERFORM_BOOLEAN) return { shapeHandle: nextHandle++, mesh: null };
         return nativeBox();
       },
     },
@@ -40,6 +43,7 @@ function nativeBox() {
 
 beforeEach(() => {
   calls.length = 0;
+  brokenBoolean = false;
 });
 
 const XY_PLANE = {
@@ -166,4 +170,35 @@ test("reverse·two-angles·CW Revolve 는 폴백으로 만든다", async () => {
   assert.ok(Math.abs(reverse.max.z - 10) < 1e-6 && Math.abs(reverse.min.z) < 1e-6, `z 범위 ${reverse.min.z}..${reverse.max.z}`);
   boundingBox(manager.extrudedSolids.get("two"));
   boundingBox(manager.extrudedSolids.get("cw"));
+});
+
+test("native Pocket 이 원본을 소비한 뒤 원본을 native 로 다시 만들어도 숨긴 채로 둔다", async () => {
+  // 고치기 전에는 IPC 를 기다린 뒤 새 원본 메시가 visible=true 로 들어가 구멍을 덮었다
+  const manager = await createManager();
+  await manager.addExtrudedSolid(pad({}), geometriesOf("disk"));
+  await manager.addExtrudedSolid(
+    pad({ id: "pocket", type: "pocket", sketchPlaneKey: "hole", targetOperationId: "pad" }),
+    geometriesOf("hole"),
+  );
+  assert.ok(calls.includes(OcctChannels.PERFORM_BOOLEAN));
+  await manager.addExtrudedSolid(pad({ depth: 12 }), geometriesOf("disk"));
+  assert.equal(manager.extrudedSolids.get("pad")!.visible, false);
+  assert.equal(manager.extrudedSolids.get("pocket")!.visible, true);
+});
+
+test("native 부울 연산 뒤 메시 변환이 실패하면 원본을 숨기지 않는다", async () => {
+  // 고치기 전에는 결과 메시를 씬에 넣기 전에 원본을 숨기고 소비를 기록해, 뒤에서 실패하면 결과 없이
+  // 원본만 사라졌다. 폴백도 못 만들게 Pocket 에는 스케치 밖 기하를 주지 않는다(native 는 저장된 스케치를 쓴다).
+  const manager = await createManager();
+  await manager.addExtrudedSolid(pad({}), geometriesOf("disk"));
+  brokenBoolean = true;
+  await manager.addExtrudedSolid(
+    pad({ id: "pocket", type: "pocket", sketchPlaneKey: "hole", targetOperationId: "pad" }),
+    new Map(),
+  );
+  assert.ok(calls.includes(OcctChannels.PERFORM_BOOLEAN));
+  assert.equal(manager.extrudedSolids.get("pocket"), undefined);
+  assert.equal(manager.extrudedSolids.get("pad")!.visible, true);
+  manager.setExtrudedSolidsVisible(true);
+  assert.equal(manager.extrudedSolids.get("pad")!.visible, true);
 });
