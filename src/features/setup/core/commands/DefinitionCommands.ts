@@ -1,5 +1,6 @@
 // Shape 삭제 커맨드 (글로벌 히스토리용)
 
+import type { SketchConstraint } from "../../sketch/constraints/SketchConstraint.type";
 import type { SketchShape } from "../../sketch/shapeDetector";
 import type { SketchGeometryStore } from "../../sketch/SketchGeometryStore";
 
@@ -11,7 +12,7 @@ export class DeleteShapeCommand implements GlobalCommand {
   private _removedShape: SketchShape | null = null;
   private _removedShapeIndex = -1;
   private _removedGeometries: { id: string; data: ReturnType<SketchGeometryStore["geometries"]["get"]> }[] = [];
-  private _removedConstraints: { id: string; data: unknown }[] = [];
+  private _removedConstraints: SketchConstraint[] = [];
 
   constructor(
     private _shapeId: string,
@@ -39,18 +40,10 @@ export class DeleteShapeCommand implements GlobalCommand {
       }
     }
 
-    // 관련 constraint 삭제 전 백업
+    // 관련 constraint 삭제 전 백업 — 구속 종류마다 참조 필드가 달라(circle·lineA·entityA 등)
+    // getConstraintGeomIds 기반의 cascade 삭제를 써야 치수·평행 같은 구속이 고아로 남지 않는다
     if (this._geoStore.constraintStore) {
-      for (const [cId, c] of this._geoStore.constraintStore.constraints) {
-        const refs: string[] = [];
-        if ("pointA" in c && c.pointA) refs.push((c.pointA as { geomId: string }).geomId);
-        if ("pointB" in c && c.pointB) refs.push((c.pointB as { geomId: string }).geomId);
-        if ("line" in c && c.line) refs.push((c.line as { geomId: string }).geomId);
-        if (refs.some((r) => lineIdSet.has(r))) {
-          this._removedConstraints.push({ id: cId, data: structuredClone(c) });
-          this._geoStore.constraintStore.constraints.delete(cId);
-        }
-      }
+      this._removedConstraints = this._geoStore.constraintStore.removeConstraintsForGeometry(lineIdSet);
     }
 
     // shape 삭제
@@ -72,9 +65,7 @@ export class DeleteShapeCommand implements GlobalCommand {
 
     // constraint 복원
     if (this._geoStore.constraintStore) {
-      for (const { id, data } of this._removedConstraints) {
-        this._geoStore.constraintStore.constraints.set(id, data as Parameters<typeof this._geoStore.constraintStore.constraints.set>[1]);
-      }
+      this._geoStore.constraintStore.addConstraints(this._removedConstraints);
     }
 
     // shape 복원 (원래 인덱스 위치에 삽입)
