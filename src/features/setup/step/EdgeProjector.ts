@@ -31,6 +31,11 @@ const isClosed = (pts: Vec2[], epsilon = 1e-4): boolean => {
   return d < epsilon;
 };
 
+// 테셀레이션된 원·호에서 이웃한 두 점이 중심에서 벌어지는 각의 상한.
+// occt-import-js 기본값으로 실측하면 보통 14° 이하이고, 가장 거친 것이 큰 부품(10 m 판)의 작은 구멍(r=1)을 10 등분한 36° 였다.
+// 이보다 거친 경계(정팔각형 45°, 육각형, 사각형, 삼각형)는 실제 다각형 면과 구별할 수 없으므로 원·호로 보지 않는다.
+const MAX_SEGMENT_ANGLE = (40 * Math.PI) / 180;
+
 // 3점으로 원 피팅 (닫힌 polyline용)
 const fitCircle = (pts: Vec2[]): { cx: number; cy: number; r: number } | null => {
   if (pts.length < 3) return null;
@@ -57,7 +62,22 @@ const fitCircle = (pts: Vec2[]): { cx: number; cy: number; r: number } | null =>
   for (const p of pts) {
     if (Math.abs(Math.hypot(p.x - cx, p.y - cy) - r) / r > 0.05) return null;
   }
+  // 꼭짓점만 보면 직사각형·삼각형처럼 외접원 위에 꼭짓점이 놓인 다각형도 원이 된다.
+  // 이웃한 점 사이 중심각이 작아야(= 선분 중점도 원에 가까워야) 원·호로 본다
+  for (let i = 1; i < pts.length; i++) {
+    const ax = pts[i - 1].x - cx, ay = pts[i - 1].y - cy;
+    const bx = pts[i].x - cx, by = pts[i].y - cy;
+    if (Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by)) > MAX_SEGMENT_ANGLE) return null;
+  }
   return { cx, cy, r };
+};
+
+// 중심에서 본 점들의 각을 정렬했을 때 가장 큰 빈틈도 MAX_SEGMENT_ANGLE 이하인지 (원 둘레를 다 덮는지)
+const coversFullCircle = (pts: Vec2[], circle: { cx: number; cy: number }): boolean => {
+  const angles = pts.map((p) => Math.atan2(p.y - circle.cy, p.x - circle.cx)).sort((a, b) => a - b);
+  let maxGap = angles[0] + Math.PI * 2 - angles[angles.length - 1];
+  for (let i = 1; i < angles.length; i++) maxGap = Math.max(maxGap, angles[i] - angles[i - 1]);
+  return maxGap <= MAX_SEGMENT_ANGLE;
 };
 
 // 직선 판별 (모든 점이 시작-끝 선분 위에 있는지)
@@ -109,10 +129,12 @@ const polylineToGeometry = (pts: Vec2[]): SerializedGeometry | null => {
 
   const closed = isClosed(pts);
 
-  // 닫힌 polyline → 원 판별
+  // 닫힌 polyline → 원 판별.
+  // 원 둘레를 다 덮어야 원이다. 필렛 면처럼 같은 호를 갔다가 되돌아오는 경계는 점이 모두 원 위에 있고
+  // 이웃 점 사이 각도 작지만, 나머지 둘레가 비어 있다
   if (closed) {
     const circle = fitCircle(pts);
-    if (circle) {
+    if (circle && coversFullCircle(pts, circle)) {
       return {
         type: "circle",
         id: generateId(),
