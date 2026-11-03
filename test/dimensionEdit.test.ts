@@ -36,6 +36,9 @@ stub("src/features/setup/step/OcctWasmManager", {});
 
 type Prompt = (constraint: SketchConstraint, callback: (asReference: boolean) => void) => void;
 
+// 훅이 값 패널을 열고 닫으려고 부른 setDimensionMode 값 (null = 닫기)
+const dimensionModes: unknown[] = [];
+
 async function dimensionConfirm(store: SketchGeometryStore, constraintId: string, value: number, onDrivenDimensionPrompt?: Prompt) {
   const { useSketchRefCallbacks } = await import("src/features/setup/hooks/useSketchRefCallbacks");
   // eslint-disable-next-line react-hooks/rules-of-hooks -- React 없이 훅이 만든 콜백만 부른다
@@ -48,7 +51,7 @@ async function dimensionConfirm(store: SketchGeometryStore, constraintId: string
     models: [],
     deletedBodies: new Map(),
     hiddenBodies: new Map(),
-    setDimensionMode: () => {},
+    setDimensionMode: (mode) => dimensionModes.push(mode),
     setFilletMode: () => {},
     setFilletRadius: () => {},
     setChamferMode: () => {},
@@ -172,4 +175,21 @@ test("안내에 답하기 전에 그 치수가 지워졌으면 아무것도 하�
   prompts[0](true);
   // 고치기 전에는 지워진 치수가 참조 치수로 다시 들어왔다
   assert.equal(store.constraintStore?.constraints.has("d"), false);
+});
+
+test("편집 치수를 참조 치수로 바꾸면 새 치수 배치처럼 그 치수를 선택하고 값 패널을 닫는다", async () => {
+  // 리뷰 반영(2차) — 편집 경로가 { ...updated, isReference: true } 를 따로 만들어, addDrivenDimension 을 쓰는 새 치수
+  // 경로와 선택·패널 닫기가 달랐다
+  const { store, history } = await fixedLineWithLength();
+  const prompts: ((asReference: boolean) => void)[] = [];
+  await dimensionConfirm(store, "d", 20, (_constraint, callback) => prompts.push(callback));
+  dimensionModes.length = 0;
+
+  prompts[0](true);
+  assert.equal(store.selectedConstraintId, "d");
+  assert.deepEqual(dimensionModes, [null]);
+  // undo 한 번에 원래(구동) 치수로 돌아오는 것은 그대로
+  history.undo();
+  const d = store.constraintStore?.constraints.get("d");
+  assert.equal(d && "isReference" in d && d.isReference, false);
 });
