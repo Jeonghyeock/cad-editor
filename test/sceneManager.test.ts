@@ -71,3 +71,26 @@ test("zoomToFit 은 숨긴 모델과 보이지 않는 raycast 평면을 빼고 �
   sm.zoomToFit();
   assert.ok(Math.abs(sm.orthoCamera.top - 12) < 1e-9, `halfH=${sm.orthoCamera.top}`);
 });
+
+// 카메라의 화면 위쪽이 월드에서 가리키는 방향
+const screenUpOf = (cam: THREE.Camera) => new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+
+test("ViewCube 로 위에서 본 뒤 궤도 회전해도 화면이 눕지 않는다", async () => {
+  // 고치기 전에는 ViewCube Y 축 클릭이 camera.up 을 (0,0,-1) 로 바꾼 채 두었다. OrbitControls 는 생성 때 up (0,1,0) 을
+  // 축으로 도는데 lookAt 은 바뀐 up 을 써서, 위에서 옆으로 내려오면 월드 Y 가 화면 가로가 되었다.
+  const sm = makeSceneManager();
+  const cam = sm.perspCamera;
+  sm.animateCameraToDirection(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1));
+  await new Promise((resolve) => setTimeout(resolve, 500)); // 300ms 애니메이션이 끝날 때까지
+
+  // 위에서 본 화면은 ViewCube 가 정한 대로 화면 위쪽이 -Z 이고, up 은 원래대로 (0,1,0)
+  assert.ok(screenUpOf(cam).dot(new THREE.Vector3(0, 0, -1)) > 0.999);
+  assert.deepEqual(cam.up.toArray(), [0, 1, 0]);
+
+  // 옆으로 90° 돌고 0.5 rad 내려오는 궤도 회전 뒤에도 월드 Y 가 화면 위쪽을 향한다
+  const orbit = sm.controls as unknown as { _rotateLeft(a: number): void; _rotateUp(a: number): void };
+  orbit._rotateLeft(Math.PI / 2);
+  orbit._rotateUp(-0.5);
+  sm.controls.update();
+  assert.ok(screenUpOf(cam).y > 0.4, `화면 위쪽=${screenUpOf(cam).toArray()}`);
+});
