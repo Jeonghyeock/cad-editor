@@ -4,9 +4,6 @@ import electronSquirrelStartup from "electron-squirrel-startup";
 import { spawnSync } from "child_process";
 import path from "path";
 
-import { FileChannels } from "src/app/channels/fileChannels";
-import { MenuChannels } from "src/app/channels/menuChannels";
-
 import { createAppWindow } from "./appWindow";
 import { installReactDevTools } from "./devTools";
 import { sendOpenFile } from "./sendOpenFile";
@@ -151,20 +148,11 @@ if (!gotTheLock) {
 
     const win = ensureAppWindow();
 
+    // 방금 만든 창은 로드 중이라 sendOpenFile 이 did-finish-load 뒤에 한 번씩 보낸다
     const filePaths = pendingFilePaths.length
       ? pendingFilePaths
       : [cliFilePath].filter(Boolean);
-    if (filePaths.length) {
-      win.webContents.once("did-finish-load", () => {
-        for (const filePath of filePaths) {
-          win.webContents.send(
-            MenuChannels.MENU_EVENT,
-            FileChannels.OPEN_FILE,
-            filePath,
-          );
-        }
-      });
-    }
+    for (const filePath of filePaths) sendOpenFile(win.webContents, filePath);
 
     // DevTools 확장 — 패키징하지 않은 개발 실행에서만. 배포판이 시작할 때 Google 에서 확장을 내려받아
     // 프로덕션 세션에 싣지 않도록(README '모두 로컬') 막고, 동적 import 로 main 번들에서도 뺀다(devTools.ts).
