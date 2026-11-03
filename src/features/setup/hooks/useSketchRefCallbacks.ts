@@ -305,7 +305,13 @@ export const useSketchRefCallbacks = ({
             // 새 치수 배치(DimensionDrawTool.onOverConstrained)처럼 과구속 안내를 띄운다 — 조용히 되돌리면 값이 왜
             // 안 바뀌었는지 알 수 없다. 참조 치수로 하겠다면 이 치수를 참조(driven)로 바꾸고(히스토리 한 칸, undo 하면
             // 원래 치수), 취소면 이전 값 그대로 둔다.
+            // 답이 올 때까지 상황이 바뀔 수 있다 — 같은 스케치가 열려 있고 편집하려던 치수가 그대로 있을 때만 적용한다
+            // (아니면 다른 스케치나 이미 바뀐 치수에 엉뚱하게 적용된다).
+            const sketchAtPrompt = geoStore.globalHistory?.activeSketchKey ?? null;
             depsRef.current.onDrivenDimensionPrompt?.(updated, (asReference) => {
+              const sameSketch = (geoStore.globalHistory?.activeSketchKey ?? null) === sketchAtPrompt;
+              const unchanged = geoStore.constraintStore?.constraints.get(existing.id) === existing;
+              if (!sameSketch || !unchanged) return;
               if (asReference) {
                 const refConstraint = { ...updated, isReference: true } as typeof updated & { isReference: true };
                 geoStore.execute(
