@@ -6,6 +6,7 @@ import { test } from "node:test";
 import type { SerializedGeometry } from "src/features/setup/Setup.type";
 import { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 import { SnapEngine } from "src/features/setup/sketch/SnapEngine";
+import { SpatialGrid } from "src/features/setup/utils/spatialIndex";
 
 // 화면 반경 10px, 배율 1 → 스냅 반경 10, 공간 그리드 칸 크기 60(= 반경 × 6).
 // 기하는 원점(항상 후보)과 축에서 멀리 두어 원점 스냅이 끼어들지 않게 한다.
@@ -83,11 +84,48 @@ test("호는 그려진 구간의 둘레에서만 잡히고, 칸이 너무 많이
   assert.equal(top.sourceGeomId, "A");
   assert.equal(snapAt([arc], 3000 + 50, 3000 - 303), null);
 
-  // 반지름 10만 원은 둘레를 칸마다 넣으면 수만 칸이라 따로 늘 후보로 둔다
+  // 반지름 10만 원은 둘레를 칸마다 넣으면 수만 칸이라 그리드 대신 따로 둔다
   const big: SerializedGeometry = { type: "circle", id: "B", cx: 5000, cy: 5000, r: 100000 };
   const a = 1;
   const r = snapAt([big], 5000 + 100003 * Math.cos(a), 5000 + 100003 * Math.sin(a));
   assert.ok(r);
   assert.equal(r.type, "nearest");
   assert.equal(r.sourceGeomId, "B");
+});
+
+test("공간 그리드는 같은 칸에 같은 기하를 한 번만 넣는다", () => {
+  // 고치기 전에는 칸 크기 절반 간격 표본이 같은 칸에 여러 번 떨어지면 그 칸에 같은 index 가 겹쳐 쌓였다
+  const grid = new SpatialGrid<number>(60);
+  grid.insert(10, 10, 7);
+  grid.insert(30, 40, 7);
+  grid.insert(50, 5, 8);
+  assert.deepEqual(grid.query(0, 0, 59, 59).sort(), [7, 8]);
+});
+
+test("그리드에 넣지 못한 큰 기하도 커서에서 먼 것은 매 이동마다 후보로 평가하지 않는다", () => {
+  // 고치기 전에는 표본이 512개를 넘는 기하(크게 확대한 상태)를 모두 늘 후보로 두어, 커서에서 멀어도
+  // 매 포인터 이동마다 후보·교차 계산을 했다
+  const store = new SketchGeometryStore();
+  for (let k = 0; k < 50; k++) {
+    store.geometries.set(`B${k}`, { type: "circle", id: `B${k}`, cx: 5000, cy: 5000, r: 100000 + k * 1000 });
+  }
+  store.geometries.set("L", { type: "line", id: "L", x1: 1000, y1: 500, x2: 1100, y2: 500 });
+  const engine = new SnapEngine();
+  // 기하별 연속 스냅 계산 횟수 = 후보로 평가한 기하 수
+  const internals = engine as unknown as { _getContinuousSnap: (...args: unknown[]) => unknown };
+  const original = internals._getContinuousSnap.bind(engine);
+  let evaluated = 0;
+  internals._getContinuousSnap = (...args: unknown[]) => {
+    evaluated++;
+    return original(...args);
+  };
+
+  const r = engine.snap({ x: 1030, y: 503 }, 0, store, SCREEN_SNAP_RADIUS, 1);
+  assert.equal(r?.sourceGeomId, "L");
+  assert.equal(evaluated, 1);
+
+  // 큰 원도 둘레 근처나 중심 근처에서는 여전히 후보다
+  const center = engine.snap({ x: 5002, y: 5001 }, 0, store, SCREEN_SNAP_RADIUS, 1);
+  assert.equal(center?.type, "center");
+  assert.deepEqual({ x: center?.x, y: center?.y }, { x: 5000, y: 5000 });
 });

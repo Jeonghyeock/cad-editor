@@ -47,7 +47,8 @@ const SNAP_PRIORITY: Record<SnapType, number> = {
 };
 
 // 공간 그리드에 기하 하나를 넣을 때 몸통·둘레 위에 찍는 표본 수의 상한. 크게 확대해 기하 하나가 이보다 많은 칸에
-// 걸치면 그리드에 넣지 않고 axis 처럼 늘 후보로 둔다 (드래그 중에는 프레임마다 그리드를 다시 짓기 때문).
+// 걸치면 그리드에 넣지 않고 따로 두었다가, 질의 때 커서까지의 거리로 거른다 (드래그 중에는 프레임마다 그리드를
+// 다시 짓기 때문).
 const MAX_GRID_SAMPLES = 512;
 
 export class SnapEngine {
@@ -60,7 +61,7 @@ export class SnapEngine {
 
   // SpatialGrid 캐시 — 기하 변경 시에만 재빌드 (pointerMove 성능 최적화)
   private _cachedGrid: SpatialGrid<number> | null = null;
-  // 그리드에 넣기엔 너무 큰 기하 인덱스 — 질의 때 늘 후보에 더한다
+  // 그리드에 넣기엔 너무 큰 기하 인덱스 — 질의 때 커서 근처인 것만 후보에 더한다
   private _cachedWideIndices: number[] = [];
   private _cachedGeometries: SerializedGeometry[] = [];
   private _cachedGeomVersion = -1;
@@ -177,7 +178,10 @@ export class SnapEngine {
 
     // 근접 기하 인덱스 수집 (중복 제거)
     const nearbyIndices = new Set(this._cachedGrid.queryRadius(pos.x, pos.y, searchRadius));
-    for (const i of this._cachedWideIndices) nearbyIndices.add(i);
+    // 크게 확대해 이런 기하가 많아져도 매 포인터 이동의 후보·교차 계산은 커서 근처 것만 하도록 거리로 거른다
+    for (const i of this._cachedWideIndices) {
+      if (this._isNearWideGeometry(pos, allGeometries[i], searchRadius)) nearbyIndices.add(i);
+    }
     // axis 는 무한선이라 grid cell 에 국한되지 않음 — 항상 candidate 에 포함.
     for (let i = 0; i < allGeometries.length; i++) {
       if (allGeometries[i].type === "axis") nearbyIndices.add(i);
@@ -667,6 +671,34 @@ export class SnapEngine {
       }
     }
     return true;
+  }
+
+  // 그리드에 넣지 못한 큰 기하(선·원·호·타원)가 커서에서 radius 안에 있는지 — 몸통·둘레까지의 거리나
+  // 중심까지의 거리로 본다. 연장선을 뺀 스냅 후보는 모두 몸통·둘레 위이거나 중심이라 빠지는 스냅이 없고,
+  // 연장선은 그리드에 넣은 기하와 같게 끝점 근처에서만 잡힌다.
+  // 호·타원은 넉넉히(원 전체·두 반지름 사이 고리) 보고, 그려지지 않은 쪽은 후보 평가에서 걸러진다.
+  private _isNearWideGeometry(pos: { x: number; y: number }, geom: SerializedGeometry, radius: number): boolean {
+    switch (geom.type) {
+      case "line": {
+        const dx = geom.x2 - geom.x1;
+        const dy = geom.y2 - geom.y1;
+        const lenSq = dx * dx + dy * dy;
+        const t = lenSq > 0 ? Math.max(0, Math.min(1, ((pos.x - geom.x1) * dx + (pos.y - geom.y1) * dy) / lenSq)) : 0;
+        return Math.hypot(pos.x - (geom.x1 + t * dx), pos.y - (geom.y1 + t * dy)) <= radius;
+      }
+      case "circle":
+      case "arc": {
+        const d = Math.hypot(pos.x - geom.cx, pos.y - geom.cy);
+        return Math.abs(d - geom.r) <= radius || d <= radius;
+      }
+      case "ellipse": {
+        const d = Math.hypot(pos.x - geom.cx, pos.y - geom.cy);
+        const inRing = d >= Math.min(geom.rx, geom.ry) - radius && d <= Math.max(geom.rx, geom.ry) + radius;
+        return inRing || d <= radius;
+      }
+      default:
+        return true;
+    }
   }
 
   private _getSnapCandidates(geom: SerializedGeometry, geomId: string): NonNullable<SnapResult>[] {
