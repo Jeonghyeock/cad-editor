@@ -6,7 +6,7 @@ import {
   VERTEX_HIT_RATIO,
 } from "src/shared/constants/CanvasConstants";
 
-import type { GlobalHistoryManager } from "../core/GlobalHistoryManager";
+import { applyGeometryCommand, type GlobalHistoryManager } from "../core/GlobalHistoryManager";
 import { AXIS_SCREEN_PX } from "../rendering/overlayConstants";
 import type {
   HitResult,
@@ -284,16 +284,15 @@ export class SketchGeometryStore {
   }
 
   // 커맨드를 실행해 보고 over-constrained/error 가 아닐 때만 글로벌 히스토리에 기록. 상충하면 되돌리고 false.
+  // 히스토리가 아직 연결되지 않았으면 기록 없이 실행만 한다 — 받아들임은 똑같이 솔브 결과로 정한다.
   tryExecute(command: GeometryCommand): boolean {
-    return (
-      this.globalHistory?.tryExecuteGeometryCommand(
-        command,
-        this,
-        (store) =>
-          store.solveStatus !== "over-constrained" &&
-          store.solveStatus !== "error",
-      ) ?? false
-    );
+    const accept = (store: SketchGeometryStore) =>
+      store.solveStatus !== "over-constrained" && store.solveStatus !== "error";
+    if (this.globalHistory) {
+      return this.globalHistory.tryExecuteGeometryCommand(command, this, accept);
+    }
+    if (command.isEmpty?.()) return true;
+    return applyGeometryCommand(command, this, accept) !== null;
   }
 
   removeConstraintById(id: string): void {
