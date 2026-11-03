@@ -31,9 +31,10 @@ export const APP_MENU_OPTIONS: Electron.MenuItemConstructorOptions[] = [
       },
       { type: "separator" },
       {
+        // role 을 두지 않는다. role:"quit" 이면 click 대신 app.quit() 이 바로 실행돼 저장 확인 없이 꺼진다
+        // (제목표시줄 메뉴는 main 에서 menuItem.click() 을 부르는데, role 이 있으면 그쪽이 이긴다).
         id: MenuChannels.WINDOW_CLOSE,
         label: "Exit",
-        role: "quit",
         accelerator: "CmdOrCtrl+Q",
         click: emitEvent(MenuChannels.WINDOW_CLOSE),
       },
