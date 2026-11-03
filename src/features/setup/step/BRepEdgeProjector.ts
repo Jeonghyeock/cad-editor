@@ -22,6 +22,13 @@ const projectToPlane = (point: Vec3, origin: Vec3, u: Vec3, v: Vec3): Vec2 => {
 // 중복 제거용 거리 비교
 const dist2d = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y);
 
+const cross = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+});
+const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
 const SAMPLES_DEFAULT = 24;
 
 /**
@@ -57,15 +64,11 @@ export function projectBRepEdge(
     case "circle": {
       const center2d = proj(edge.center);
       // 원의 축이 평면 법선과 평행한지 확인
-      const normal = {
-        x: u.y * v.z - u.z * v.y,
-        y: u.z * v.x - u.x * v.z,
-        z: u.x * v.y - u.y * v.x,
-      };
-      const signedDot = edge.axis.x * normal.x + edge.axis.y * normal.y + edge.axis.z * normal.z;
-      const dot = Math.abs(signedDot);
+      const normal = cross(u, v);
+      const signedDot = dot(edge.axis, normal);
+      const absDot = Math.abs(signedDot);
 
-      if (dot > 0.99) {
+      if (absDot > 0.99) {
         // 원이 평면과 평행 → circle 또는 arc
         const sweep = edge.endParam - edge.startParam;
         if (Math.abs(sweep) >= Math.PI * 2 - 0.01) {
@@ -98,7 +101,7 @@ export function projectBRepEdge(
 
       // 원이 평면과 거의 수직 (dot < 0.05) → 직선으로 투영.
       // 시작·끝점만 이으면 전체 원(시작=끝)은 길이 0 으로 빠지고, 반원처럼 범위 안에서 더 멀리 가는 호는 짧아진다
-      if (dot < 0.05) {
+      if (absDot < 0.05) {
         const [tMin, tMax] = perpendicularCircleExtent(edge, normal);
         const p1 = proj(circlePointAt(edge, tMin));
         const p2 = proj(circlePointAt(edge, tMax));
@@ -180,12 +183,7 @@ export function projectBRepEdge(
 function circlePointAt(edge: BRepEdgeCurve & { type: "circle" }, t: number): Vec3 {
   const a = edge.axis;
   const xd = edge.xDir;
-  // yd = axis × xDir
-  const yd = {
-    x: a.y * xd.z - a.z * xd.y,
-    y: a.z * xd.x - a.x * xd.z,
-    z: a.x * xd.y - a.y * xd.x,
-  };
+  const yd = cross(a, xd);
   const c = Math.cos(t), s = Math.sin(t);
   const r = edge.radius;
   return {
@@ -201,18 +199,9 @@ function circlePointAt(edge: BRepEdgeCurve & { type: "circle" }, t: number): Vec
 function perpendicularCircleExtent(edge: BRepEdgeCurve & { type: "circle" }, normal: Vec3): [number, number] {
   const a = edge.axis;
   const xd = edge.xDir;
-  const d = {
-    x: a.y * normal.z - a.z * normal.y,
-    y: a.z * normal.x - a.x * normal.z,
-    z: a.x * normal.y - a.y * normal.x,
-  };
-  // yd = axis × xDir
-  const yd = {
-    x: a.y * xd.z - a.z * xd.y,
-    y: a.z * xd.x - a.x * xd.z,
-    z: a.x * xd.y - a.y * xd.x,
-  };
-  const phi = Math.atan2(yd.x * d.x + yd.y * d.y + yd.z * d.z, xd.x * d.x + xd.y * d.y + xd.z * d.z);
+  const d = cross(a, normal);
+  const yd = cross(a, xd);
+  const phi = Math.atan2(dot(yd, d), dot(xd, d));
 
   const ts = [edge.startParam, edge.endParam];
   for (let t = phi + Math.ceil((edge.startParam - phi) / Math.PI) * Math.PI; t < edge.endParam; t += Math.PI) {
@@ -255,11 +244,7 @@ function sampleEllipseToGeometry(
 ): SerializedGeometry | null {
   const a = edge.axis;
   const md = edge.majorDir;
-  const minorDir = {
-    x: a.y * md.z - a.z * md.y,
-    y: a.z * md.x - a.x * md.z,
-    z: a.x * md.y - a.y * md.x,
-  };
+  const minorDir = cross(a, md);
 
   const points: Vec2[] = [];
   for (let i = 0; i <= samples; i++) {
