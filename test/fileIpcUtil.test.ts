@@ -61,7 +61,7 @@ test("열린 파일 하나를 읽지 못해도 목록에서 빼지 않는다", a
     [a, b],
   );
   assert.equal(list[0].fileContent, null);
-  assert.equal(list[1].fileContent.fileId, "b");
+  assert.equal(list[1].fileContent?.fileId, "b");
 });
 
 test("수정하지 않은 읽기 전용 파일의 탭을 닫으면 닫힌다", async () => {
