@@ -1027,7 +1027,9 @@ export class SketchGeometryStore {
     const saved: ShapeSnapshot[] = [];
     this.shapes.forEach((shape, index) => {
       if (shape.lineIds.some((id) => geomIds.has(id))) {
-        saved.push({ index, shape: structuredClone(shape) });
+        // 얕은 복사 — image dataURL(수 MB)은 불변 문자열이라 공유하고, 배열 필드만 새로 만든다
+        const copy = { ...shape, lineIds: [...shape.lineIds], vertices: [...shape.vertices], holes: [...shape.holes] };
+        saved.push({ index, shape: copy });
       }
     });
     return saved;
