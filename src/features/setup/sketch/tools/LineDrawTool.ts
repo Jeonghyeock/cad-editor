@@ -34,26 +34,31 @@ export class LineDrawTool extends DrawTool {
   private _startPos: { x: number; y: number } | null = null;
   // 시작점 스냅 정보 (auto-coincident 구속 생성용)
   private _startSnap: SnapResult = null;
+  // 지금 찍는 점이 입력 패널 값(H/V, L/A)에서 왔는지 — 그런 점은 값 그대로 쓴다(_placeFromInput)
+  private _fromInput = false;
 
   onPointerDown(
     store: SketchGeometryStore,
     _rawPos: { x: number; y: number },
     snappedPos: { x: number; y: number },
   ): void {
+    // 입력 패널 값은 커서 위치와 무관하므로, 커서가 잡은 스냅 결과로 자동 구속을 만들지 않는다
+    const snap = this._fromInput ? null : store.snapResult;
     if (!this._startPos) {
       // 첫 클릭: 시작점 설정 + 스냅 정보 캡처
       this._startPos = { ...snappedPos };
-      this._startSnap = store.snapResult;
+      this._startSnap = snap;
     } else {
       // 두 번째 클릭: H/V 스냅 우선, H/V 미발동 시 parallel/perpendicular/colinear 추론.
-      const endSnap = store.snapResult;
-      const hvResult = this._applyHVSnap(snappedPos);
+      // 입력 패널 값으로 들어온 끝점은 입력한 길이·각도를 지키도록 두 보정을 모두 건너뛴다.
+      const endSnap = snap;
+      const hvResult = this._fromInput ? { pos: snappedPos, snapDir: null } : this._applyHVSnap(snappedPos);
       let snapped = hvResult.pos;
       const hvFired = hvResult.snapDir !== null;
 
       // CATIA SmartPick: H/V 안 걸린 경우 기존 line 과 평행/수직/공선 자동 추론.
       let ppResult: ReturnType<typeof this._applyParallelPerpendicularSnap> = null;
-      if (!hvFired && this._startPos) {
+      if (!hvFired && this._startPos && !this._fromInput) {
         ppResult = this._applyParallelPerpendicularSnap(store, this._startPos, snapped);
         if (ppResult) snapped = ppResult.pos;
       }
@@ -268,7 +273,7 @@ export class LineDrawTool extends DrawTool {
     if (!this._startPos) {
       // 시작점 설정: H/V 필요
       if (values.H !== undefined && values.V !== undefined) {
-        this.onPointerDown(store, { x: values.H, y: values.V }, { x: values.H, y: values.V });
+        this._placeFromInput(store, { x: values.H, y: values.V });
         return true;
       }
       return false;
@@ -278,14 +283,25 @@ export class LineDrawTool extends DrawTool {
       const rad = values.A * Math.PI / 180;
       const endX = this._startPos.x + values.L * Math.cos(rad);
       const endY = this._startPos.y + values.L * Math.sin(rad);
-      this.onPointerDown(store, { x: endX, y: endY }, { x: endX, y: endY });
+      this._placeFromInput(store, { x: endX, y: endY });
       return true;
     }
     if (values.H !== undefined && values.V !== undefined) {
-      this.onPointerDown(store, { x: values.H, y: values.V }, { x: values.H, y: values.V });
+      this._placeFromInput(store, { x: values.H, y: values.V });
       return true;
     }
     return false;
+  }
+
+  // 입력 패널 값으로 점을 찍는다. 값이 곧 좌표라 H/V·평행·수직 보정을 하지 않고, 커서 위치의 스냅 결과로 자동 구속도
+  // 만들지 않는다 — 그러면 L=100, A=2 가 0° 수평선으로, 30° 선 옆의 A=33 이 30° 평행선으로 바뀌었다.
+  private _placeFromInput(store: SketchGeometryStore, pos: { x: number; y: number }): void {
+    this._fromInput = true;
+    try {
+      this.onPointerDown(store, pos, pos);
+    } finally {
+      this._fromInput = false;
+    }
   }
 
   cancel(): void {
