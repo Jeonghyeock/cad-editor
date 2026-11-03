@@ -1298,11 +1298,14 @@ function validateDimensionConstraints(
             const cosAngle = Math.max(-1, Math.min(1, (dxA * dxB + dyA * dyB) / (magA * magB)));
             const actual = Math.acos(cosAngle) * 180 / Math.PI;
             // c.value 가 사잇각 (isAcute=true/undefined) 또는 보각 (isAcute=false) 표시값.
-            // actual 도 line direction 에 따라 사잇각 (cos>0) 또는 보각 (cos<0). 두 표현 (actual,
-            // 180-actual) 중 c.value 와 가까운 쪽으로 비교 — flag 무관하게 동등성 검증.
-            const diffDirect = Math.abs(actual - c.value);
-            const diffSupp = Math.abs((180 - actual) - c.value);
-            if (Math.min(diffDirect, diffSupp) > DIM_ANGLE_TOLERANCE) return false;
+            // actual 도 line direction 에 따라 사잇각 (cos>0) 또는 보각 (cos<0). 네 표현 중 c.value 와
+            // 가까운 쪽으로 비교 — flag 무관하게 동등성 검증.
+            // DimensionPanel 은 0~360° 를 받고 (사잇각 / 보각 / 반사각 / 보반사각), planegcs l2l_angle 은
+            // 360° 주기라 200° 를 -160° 로 맞춘다. acos 로 접힌 actual 은 0~180° 이므로 반사각
+            // (360-actual) 과 보반사각 (180+actual) 도 같이 비교해야 UI 가 받은 값을 거부하지 않는다.
+            const representations = [actual, 180 - actual, 180 + actual, 360 - actual];
+            const diff = Math.min(...representations.map((a) => Math.abs(a - c.value)));
+            if (diff > DIM_ANGLE_TOLERANCE) return false;
           }
         }
         break;
