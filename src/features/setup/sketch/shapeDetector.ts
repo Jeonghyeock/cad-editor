@@ -242,7 +242,7 @@ export function detectClosedShapes(
     });
   }
 
-  // 4. next 연결: he(A→B) 도착 노드 B에서, twin(B→A)의 각도 바로 다음 CCW half-edge를 next로 연결
+  // 4. next 연결: he(A→B) 도착 노드 B에서, twin(B→A)의 바로 앞(시계 방향 이웃) half-edge를 next로 연결
   for (const he of allHalfEdges) {
     const arrivedNode = he.toNode;
     const outgoing = nodeOutgoing.get(arrivedNode);
@@ -250,8 +250,10 @@ export function detectClosedShapes(
 
     const idx = outgoing.indexOf(he.twin!);
     if (idx < 0) continue;
-    // twin 바로 다음 CCW → 최소 면 (minimal face) 탐색
-    const nextIdx = (idx + 1) % outgoing.length;
+    // twin 의 시계 방향 이웃 = 진행 방향에서 가장 왼쪽으로 꺾는 edge → 왼쪽 최소 면을 CCW 로 돈다.
+    // CCW 이웃(가장 오른쪽 꺾기)을 고르면 안쪽 면은 CW 로 돌아 버려지고 바깥 경계만 남아, 나눈 칸·공유 변 사각형을
+    // 따로 잡지 못하고 바깥 가지 선이 면에 섞였다. 차수 2 인 노드는 어느 쪽이든 같다.
+    const nextIdx = (idx - 1 + outgoing.length) % outgoing.length;
     he.next = outgoing[nextIdx];
   }
 
@@ -278,7 +280,14 @@ export function detectClosedShapes(
     if (!valid || faceEdges.length < 2 || curr !== startHe) continue;
 
     // 면적 계산 (CCW = 양수만 유지, CW = 외부 면 → 스킵)
-    const lineIds = faceEdges.map((e) => e.geomId);
+    // 면 안으로 뻗은 가지 선은 같은 면에서 갔다가 되돌아오므로(정방향·역방향 반변 모두) 면 경계에서 뺀다.
+    const faceHalfEdgeIds = new Set(faceEdges.map((e) => e.id));
+    const lineIds = faceEdges
+      .filter((e) => !faceHalfEdgeIds.has(e.twin!.id))
+      .map((e) => e.geomId);
+    // 가지만으로 된 면(열린 꺾은선을 한 바퀴 왕복한 것)은 면이 아니다. 왕복 면적은 0 이어야 하지만 부동소수 잔차로
+    // 아주 작은 양수가 나와 아래 면적 검사를 통과하기도 한다.
+    if (lineIds.length === 0) continue;
     const faceVerts: { x: number; y: number }[] = [];
     for (const e of faceEdges) {
       const c = repCoord.get(e.fromNode);
