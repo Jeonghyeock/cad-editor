@@ -25,9 +25,13 @@ const rect = (x0: number, y0: number, x1: number, y1: number): SerializedGeometr
   lineIds: [],
 });
 
-async function revolve(profile: SerializedGeometry, op: Partial<RevolveOperation>): Promise<THREE.Mesh> {
+async function revolve(
+  profile: SerializedGeometry | SerializedGeometry[],
+  op: Partial<RevolveOperation>,
+): Promise<THREE.Mesh> {
   const { SolidOperationManager } = await import("src/features/setup/rendering/SolidOperationManager");
-  const sketch: SerializedSketch = { plane: XY_PLANE, geometries: [profile] };
+  const profiles = Array.isArray(profile) ? profile : [profile];
+  const sketch: SerializedSketch = { plane: XY_PLANE, geometries: profiles };
   const manager = new SolidOperationManager(new THREE.Scene(), () => sketch);
   const operation: RevolveOperation = {
     id: "rev",
@@ -40,7 +44,7 @@ async function revolve(profile: SerializedGeometry, op: Partial<RevolveOperation
     clockwise: false,
     ...op,
   };
-  await manager.addRevolvedSolid(operation, new Map([[profile.id, profile]]));
+  await manager.addRevolvedSolid(operation, new Map(profiles.map((g) => [g.id, g])));
   const mesh = manager.extrudedSolids.get("rev");
   assert.ok(mesh instanceof THREE.Mesh, "회전 솔리드가 만들어져야 한다");
   return mesh;
@@ -127,4 +131,34 @@ test("Revolve 폴백 — custom 축(원점 (0,0), 방향 (0,1))은 Y 축과 같�
     axisDirection: { x: 0, y: 1 },
   });
   assertSweep(sweptDegrees(mesh, Y, X), 0, 90);
+});
+
+test("Revolve 폴백 — 프로파일이 여럿이면 모두 돌린다", async () => {
+  // 고치기 전에는 shapes[0] 만 돌려, 여러 프로파일 Revolve(이제 reverse·two-angles·CW 는 항상 폴백)가
+  // 첫 프로파일만 남았다. 축 양쪽에 하나씩 두어 반평면 보정도 프로파일마다 따로 하는지 본다.
+  const near = { ...rect(5, 0, 7, 4), id: "near" };
+  const far = { ...rect(-17, 0, -13, 4), id: "far" };
+  const mesh = await revolve([near, far], { angle: 90, revolveDirection: "reverse" });
+
+  // 반지름 10 안쪽은 +X 쪽 프로파일, 바깥은 -X 쪽 프로파일이 만든 점이다
+  const inner = mesh.clone();
+  const outer = mesh.clone();
+  const pos = mesh.geometry.getAttribute("position");
+  const keep = (wantInner: boolean) => {
+    const kept: number[] = [];
+    for (let i = 0; i < pos.count; i++) {
+      if ((Math.hypot(pos.getX(i), pos.getZ(i)) < 10) === wantInner) kept.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(kept, 3));
+    return g;
+  };
+  inner.geometry = keep(true);
+  outer.geometry = keep(false);
+  const innerSwept = sweptDegrees(inner, Y, X);
+  const outerSwept = sweptDegrees(outer, Y, X.clone().negate());
+  assert.ok(Math.abs(innerSwept.maxRadius - 7) < 1e-6, `+X 프로파일 최대 반지름 ${innerSwept.maxRadius}`);
+  assert.ok(Math.abs(outerSwept.maxRadius - 17) < 1e-6, `-X 프로파일 최대 반지름 ${outerSwept.maxRadius}`);
+  assertSweep(innerSwept, -90, 0);
+  assertSweep(outerSwept, -90, 0);
 });
