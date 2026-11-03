@@ -61,3 +61,19 @@ test("이력 관리자가 연결되기 전에도 맞는 구속은 적용해 true
   assert.equal(store.constraintStore?.constraints.has("len20"), false);
   assert.deepEqual(round(lineOf(store, "L")), before);
 });
+
+test("이력 관리자가 없을 때도 applyConstraint·execute 는 tryExecute 와 같이 기록 없이 실행된다", async () => {
+  // 리뷰 반영(2차) — 이력이 없을 때 tryExecute 만 실행하고 execute·applyConstraint·pushSnapshot 은 아무것도 하지 않아,
+  // 상충 치수에서 'reference' 를 골라도 참조 치수가 들어가지 않았다
+  const { store } = await createSketch();
+  store.globalHistory = null;
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  assert.equal(store.geometries.has("L"), true);
+
+  assert.equal(store.tryApplyConstraint({ type: "line_length", id: "len10", line: { geomId: "L" }, value: 10 }), true);
+  const conflict = { type: "line_length" as const, id: "len20", line: { geomId: "L" }, value: 20 };
+  assert.equal(store.tryApplyConstraint(conflict), false);
+  store.applyConstraint({ ...conflict, isReference: true });
+  assert.equal(store.constraintStore?.constraints.has("len20"), true);
+  assert.notEqual(store.solveStatus, "over-constrained");
+});
