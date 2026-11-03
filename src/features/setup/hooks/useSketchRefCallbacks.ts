@@ -15,6 +15,7 @@ import { RemoveConstraintCommand } from "../sketch/commands/RemoveConstraintComm
 import { detectAutoConstraints } from "../sketch/constraints/AutoConstraintAnalyzer";
 import type { DimensionConstraintType } from "../sketch/constraints/ConstraintValidator";
 import { createConstraintFromSelection, createDimensionConstraint, findEquivalentConstraint } from "../sketch/constraints/ConstraintValidator";
+import type { SketchConstraint } from "../sketch/constraints/SketchConstraint.type";
 import type { SketchGeometryStore } from "../sketch/SketchGeometryStore";
 import type { ChamferDrawTool } from "../sketch/tools/ChamferDrawTool";
 import type { DrawTool, SketchInputFieldType } from "../sketch/tools/DrawTool";
@@ -52,6 +53,9 @@ type SketchRefCallbacksDeps = {
   setOffsetMode: (mode: { defaultDistance: number } | null) => void;
   setOffsetDistance: (d: number) => void;
 
+  // 과구속 → 참조(driven) 치수로 할지 묻는 프롬프트 (DimensionDrawTool.onOverConstrained 와 같은 수단)
+  onDrivenDimensionPrompt?: (constraint: SketchConstraint, callback: (asReference: boolean) => void) => void;
+
   // 현재 값 (Fillet/Chamfer/Offset 도구 입력 요청 콜백용)
   filletRadius: number;
   chamferDistance: number;
@@ -79,6 +83,7 @@ export const useSketchRefCallbacks = ({
   setChamferDistance2,
   setOffsetMode,
   setOffsetDistance,
+  onDrivenDimensionPrompt,
   filletRadius,
   chamferDistance,
   chamferDistance2,
@@ -88,11 +93,11 @@ export const useSketchRefCallbacks = ({
   // 모든 deps를 ref에 저장 — useEffect 내 콜백이 항상 최신 값을 참조
   const depsRef = useRef({
     geometryStoreRef, activeDrawToolRef, sceneRef, drawToolMap, models,
-    deletedBodies, hiddenBodies, setDimensionMode,
+    deletedBodies, hiddenBodies, setDimensionMode, onDrivenDimensionPrompt,
   });
   depsRef.current = {
     geometryStoreRef, activeDrawToolRef, sceneRef, drawToolMap, models,
-    deletedBodies, hiddenBodies, setDimensionMode,
+    deletedBodies, hiddenBodies, setDimensionMode, onDrivenDimensionPrompt,
   };
 
   // Fillet/Chamfer/Offset 도구의 입력 요청 콜백 설정 (부작용 — 매 렌더에서 갱신)
@@ -288,7 +293,7 @@ export const useSketchRefCallbacks = ({
           // 기존 구속 삭제 후 새 값으로 재생성 — 삭제·추가를 한 커맨드로 묶어 히스토리 한 칸으로 둔다(따로 쌓으면
           // Ctrl+Z 한 번에 치수만 사라진다). 새 값이 상충하면(over-constrained/error) 적용하지 않고 되돌린다.
           const updated = { ...existing, value } as typeof existing;
-          geoStore.tryExecute(
+          const ok = geoStore.tryExecute(
             new BatchCommand([
               new RemoveConstraintCommand(existing),
               new AddConstraintCommand(updated),
@@ -296,6 +301,23 @@ export const useSketchRefCallbacks = ({
           );
           geoStore.selectedConstraintId = null;
           geoStore.requestRender();
+          if (!ok) {
+            // 새 치수 배치(DimensionDrawTool.onOverConstrained)처럼 과구속 안내를 띄운다 — 조용히 되돌리면 값이 왜
+            // 안 바뀌었는지 알 수 없다. 참조 치수로 하겠다면 이 치수를 참조(driven)로 바꾸고(히스토리 한 칸, undo 하면
+            // 원래 치수), 취소면 이전 값 그대로 둔다.
+            depsRef.current.onDrivenDimensionPrompt?.(updated, (asReference) => {
+              if (asReference) {
+                const refConstraint = { ...updated, isReference: true } as typeof updated & { isReference: true };
+                geoStore.execute(
+                  new BatchCommand([
+                    new RemoveConstraintCommand(existing),
+                    new AddConstraintCommand(refConstraint),
+                  ]),
+                );
+              }
+              geoStore.requestRender();
+            });
+          }
           return;
         }
       }
