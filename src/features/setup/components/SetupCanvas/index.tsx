@@ -352,7 +352,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
           if (asReference) {
             // driven dimension으로 추가 + 선택. 값 패널은 열지 않음 — 참조 치수의 값은 라벨이 현재
             // 기하에서 계산하고, 열면 OK 가 남아 있던 선택 (직전에 배치한 치수) 을 패널 값으로 바꿨다.
-            addDrivenDimension(gStore, constraint);
+            addDrivenDimension(gStore, constraint, () => setDimensionMode(null));
           }
           gStore.requestRender();
         });
