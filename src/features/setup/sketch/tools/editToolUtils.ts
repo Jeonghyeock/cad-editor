@@ -166,11 +166,16 @@ export function cloneInternalConstraints(
   const allRefsInternal = (geomIds: string[]): boolean =>
     geomIds.every((id) => oldIdSet.has(id));
 
-  // ConstraintPointRef 매핑 (geomId만 변경, vertexIndex 유지)
-  const mapPointRef = (ref: { geomId: string; vertexIndex: number }) => ({
-    geomId: idMap.get(ref.geomId)!,
-    vertexIndex: ref.vertexIndex,
-  });
+  // ConstraintPointRef 매핑 (geomId 변경, vertexIndex 는 대칭된 호만 교환)
+  // 대칭은 호를 CCW 로 유지하려고 start/end 를 맞바꾸므로(Mirror/SymmetryMove), 호의 vertex 1(start)↔2(end)
+  // 도 바꿔야 복제 구속이 원본과 같은 끝점에 걸린다. vertex 0(중심)은 그대로.
+  const mapPointRef = (ref: { geomId: string; vertexIndex: number }) => {
+    let vertexIndex = ref.vertexIndex;
+    if (transform.kind === "mirror" && store.geometries.get(ref.geomId)?.type === "arc" && vertexIndex !== 0) {
+      vertexIndex = vertexIndex === 1 ? 2 : 1;
+    }
+    return { geomId: idMap.get(ref.geomId)!, vertexIndex };
+  };
 
   // ConstraintGeomRef 매핑
   const mapGeomRef = (ref: { geomId: string }) => ({

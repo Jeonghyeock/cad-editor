@@ -173,3 +173,38 @@ test("스케일 복제는 길이 치수 값도 배율만큼 바꿔, 복제본이
   assert.equal(lengthOf(top.id), 120);
   assert.equal(lengthOf(right.id), 60);
 });
+
+test("호 끝점에 이은 선을 대칭 복제·대칭 이동해도 복제 선이 호의 반대쪽 끝으로 끌려가지 않는다", async () => {
+  // 대칭은 호의 start/end 를 맞바꾼다. 고치기 전에는 coincident 의 호 vertexIndex(1=start, 2=end)를 그대로 복사해,
+  // 복제 선이 (-70,0) 대신 호의 반대쪽 끝 (-50,20) 으로 당겨졌다
+  const { AddGeometryCommand } = await import("src/features/setup/sketch/commands/AddGeometryCommand");
+  const { MirrorDrawTool } = await import("src/features/setup/sketch/tools/MirrorDrawTool");
+  const { SymmetryMoveDrawTool } = await import("src/features/setup/sketch/tools/SymmetryMoveDrawTool");
+  const a = { x: 0, y: -100 }, b = { x: 0, y: 100 };
+
+  for (const Tool of [MirrorDrawTool, SymmetryMoveDrawTool]) {
+    const { store } = await createSketch();
+    // 호: 중심 (50,0), 반지름 20, start (70,0) → end (50,20). 선은 호의 start 에서 시작한다
+    store.execute(new AddGeometryCommand({ type: "arc", id: "arc", cx: 50, cy: 0, r: 20, startAngle: 0, endAngle: Math.PI / 2 }));
+    store.execute(new AddGeometryCommand({ type: "line", id: "ln", x1: 70, y1: 0, x2: 90, y2: -30 }));
+    store.applyConstraint({
+      type: "coincident",
+      id: "co",
+      pointA: { geomId: "ln", vertexIndex: 0 },
+      pointB: { geomId: "arc", vertexIndex: 1 },
+    });
+    store.selectedIds = ["arc", "ln"];
+
+    const tool = new Tool();
+    tool.onPointerDown(store, a, a);
+    tool.onPointerDown(store, b, b);
+
+    const [arcCopy, lineCopy] = copiesOf(store, ["arc", "ln"]);
+    assert.equal(arcCopy.type, "arc");
+    assert.equal(lineCopy.type, "line");
+    if (arcCopy.type !== "arc" || lineCopy.type !== "line") return;
+    assertNear({ x: arcCopy.cx, y: arcCopy.cy }, { x: -50, y: 0 }, `${Tool.name} 호 중심`);
+    assertNear({ x: lineCopy.x1, y: lineCopy.y1 }, { x: -70, y: 0 }, `${Tool.name} 선 시작점`);
+    assertNear({ x: lineCopy.x2, y: lineCopy.y2 }, { x: -90, y: -30 }, `${Tool.name} 선 끝점`);
+  }
+});
