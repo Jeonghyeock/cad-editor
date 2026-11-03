@@ -2,14 +2,41 @@
 // 기하 + 3D 모델 작업을 하나의 히스토리 스택으로 관리
 // 기하 커맨드는 직접 보관 — SketchGeometryStore는 히스토리를 갖지 않음
 
+import type { SerializedGeometry } from "../Setup.type";
 import type { GeometryCommand } from "../sketch/commands/GeometryCommand";
 import type { SketchGeometryStore } from "../sketch/SketchGeometryStore";
 
 import type { GlobalCommand } from "./GlobalCommand";
 
+type GeometrySnapshot = Map<string, SerializedGeometry>;
+
 type GlobalEntry =
-  | { source: "geometry"; command: GeometryCommand }
+  | {
+      source: "geometry";
+      command: GeometryCommand;
+      /** 실행 직전 좌표 — undo 때 되돌린다. 드래그처럼 이미 바뀐 뒤 push 한 엔트리는 없다(명령이 직접 들고 있다). */
+      before?: GeometrySnapshot;
+      /** 실행·솔브 직후 좌표 — redo 때 되돌린다. */
+      after: GeometrySnapshot;
+    }
   | { source: "model"; command: GlobalCommand };
+
+// 솔버는 기하 객체의 좌표를 제자리에서 고친다. 구속 명령의 undo/redo 는 구속만 넣고 빼므로, 좌표를 따로 남겨 두지
+// 않으면 솔버가 옮긴 좌표가 undo 뒤에도 그대로 남고, 명령이 들고 있던 객체까지 고쳐져 redo 결과가 달라진다.
+// 그래서 저장할 때도 되돌릴 때도 복제본을 쓴다(되돌린 객체를 다음 솔브가 고쳐도 스냅샷은 그대로).
+function snapshotGeometries(store: SketchGeometryStore): GeometrySnapshot {
+  const snapshot: GeometrySnapshot = new Map();
+  for (const [id, geom] of store.geometries) snapshot.set(id, structuredClone(geom));
+  return snapshot;
+}
+
+// 좌표만 스냅샷 시점으로 되돌린다. 기하를 넣고 빼는 일은 명령의 undo/execute 가 맡으므로, 지금 store 에 있는 기하만 바꾼다.
+function restoreGeometries(store: SketchGeometryStore, snapshot: GeometrySnapshot): void {
+  for (const id of store.geometries.keys()) {
+    const geom = snapshot.get(id);
+    if (geom) store.geometries.set(id, structuredClone(geom));
+  }
+}
 
 /**
  * Listener event 종류. caller 는 종류별로 다른 처리 가능 — 예) "clear" 는 시스템 reset
@@ -35,12 +62,14 @@ export class GlobalHistoryManager {
   executeGeometryCommand(command: GeometryCommand, store: SketchGeometryStore): void {
     if (command.isEmpty?.()) return;
     this._truncateFuture();
+    const before = snapshotGeometries(store);
     command.execute(store);
     store.solveConstraints();
+    const after = snapshotGeometries(store);
     store.recomputeFaces();
     store.markGeometryChanged();
     store.requestRender();
-    this._stack.push({ source: "geometry", command });
+    this._stack.push({ source: "geometry", command, before, after });
     this._index++;
     this._notifyListeners("push");
   }
@@ -50,10 +79,12 @@ export class GlobalHistoryManager {
   pushGeometrySnapshot(command: GeometryCommand, store: SketchGeometryStore): void {
     if (command.isEmpty?.()) return;
     this._truncateFuture();
+    // 실행 전 좌표는 이미 지나갔다(명령이 직접 들고 있음). redo 때 쓸 지금 좌표만 남긴다.
+    const after = snapshotGeometries(store);
     store.recomputeFaces();
     store.markGeometryChanged();
     store.requestRender();
-    this._stack.push({ source: "geometry", command });
+    this._stack.push({ source: "geometry", command, after });
     this._index++;
     this._notifyListeners("push");
   }
@@ -91,6 +122,7 @@ export class GlobalHistoryManager {
         const store = this._geometryStore;
         if (store) {
           entry.command.undo(store);
+          if (entry.before) restoreGeometries(store, entry.before);
           store.solveConstraints();
           // 방어적 고아 구속 정리: undo 후 삭제된 기하를 참조하는 구속 제거
           // 주의: 이 정리는 히스토리에 기록되지 않으므로 redo 시 복원 불가.
@@ -119,6 +151,7 @@ export class GlobalHistoryManager {
         const store = this._geometryStore;
         if (store) {
           entry.command.execute(store);
+          restoreGeometries(store, entry.after);
           store.solveConstraints();
           store.recomputeFaces();
           store.markGeometryChanged();
