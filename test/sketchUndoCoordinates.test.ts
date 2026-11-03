@@ -1,0 +1,73 @@
+import "./helpers/assetStub";
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { AddConstraintCommand } from "src/features/setup/sketch/commands/AddConstraintCommand";
+import { AddGeometryCommand } from "src/features/setup/sketch/commands/AddGeometryCommand";
+import { DragSnapshotCommand } from "src/features/setup/sketch/commands/DragSnapshotCommand";
+
+import { createSketch, line, lineOf, round } from "./helpers/sketch";
+
+// 2026-10-28 코드리뷰 cad-editor#11 — 솔버는 기하 좌표를 제자리에서 고치므로, 구속을 undo 해도 옮긴 좌표가 남았다.
+
+test("기울어진 선에 건 수평 구속을 undo 하면 선이 원래 기울기로 돌아온다", async () => {
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  store.execute(new AddConstraintCommand({ type: "horizontal", id: "h", line: { geomId: "L" } }));
+  assert.equal(round(lineOf(store, "L")).y2, round(lineOf(store, "L")).y1);
+
+  history.undo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+});
+
+test("길이 치수를 undo 하면 선 길이가 치수를 걸기 전으로 돌아온다", async () => {
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 30, 40)));
+  store.execute(new AddConstraintCommand({ type: "line_length", id: "d", line: { geomId: "L" }, value: 100 }));
+  const g = lineOf(store, "L");
+  assert.ok(Math.abs(Math.hypot(g.x2 - g.x1, g.y2 - g.y1) - 100) < 1e-6);
+
+  history.undo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 30, y2: 40 });
+});
+
+test("선 추가 → 수평 → undo 두 번 → redo 하면 기울어진 선이 들어온다", async () => {
+  // 고치기 전에는 AddGeometryCommand 가 들고 있던 객체를 솔버가 수평으로 고쳐 두어, redo 로 수평 선이 다시 들어왔다
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+  store.execute(new AddConstraintCommand({ type: "horizontal", id: "h", line: { geomId: "L" } }));
+
+  history.undo();
+  history.undo();
+  assert.equal(store.geometries.has("L"), false);
+
+  history.redo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+
+  history.redo();
+  const g = round(lineOf(store, "L"));
+  assert.equal(g.y2, g.y1);
+});
+
+test("드래그를 redo 하면, 그 사이 다른 솔브가 옮긴 좌표가 아니라 드래그 결과로 돌아온다", async () => {
+  const { store, history } = await createSketch();
+  store.execute(new AddGeometryCommand(line("L", 0, 0, 10, 5)));
+
+  // useDragController 처럼 드래그 전후를 복제해 push 한다(드래그는 이미 끝난 상태)
+  const clone = () => new Map([...store.geometries].map(([id, g]) => [id, structuredClone(g)]));
+  const before = clone();
+  store.geometries.set("L", line("L", 0, 0, 20, 8));
+  store.pushSnapshot(new DragSnapshotCommand(before, clone()));
+
+  history.undo();
+  history.redo();
+  // redo 로 들어온 드래그 결과 객체를 이어지는 수평 구속의 솔브가 제자리에서 고친다
+  store.execute(new AddConstraintCommand({ type: "horizontal", id: "h", line: { geomId: "L" } }));
+  history.undo();
+  history.undo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 10, y2: 5 });
+
+  history.redo();
+  assert.deepEqual(round(lineOf(store, "L")), { x1: 0, y1: 0, x2: 20, y2: 8 });
+});
