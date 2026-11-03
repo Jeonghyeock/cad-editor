@@ -6,10 +6,15 @@ import * as React from "react";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { planeKeyFromSketchPlane } from "src/features/setup/rendering/SketchPlaneManager";
 import {
+  enterSketchModeAtom,
+  exitSketchModeAtom,
   setupGlobalHistoryAtom,
+  setupOperationsAtom,
   setupReferencePlanesAtom,
   setupRefPlaneModeAtom,
+  setupSketchEntriesAtom,
 } from "src/features/setup/Setup.store";
 
 import { fileIdAtom } from "src/shared/stores/File.store";
@@ -82,4 +87,52 @@ test("참조 평면을 만든 뒤 Ctrl+Z 하면 그 평면이 빠지고, 그 전
 
   history.redo();
   assert.equal(store.get(setupReferencePlanesAtom).length, 1);
+});
+
+// 리뷰 반영 — 평면 생성을 undo 하면, 그 평면에 스케치(열린 것·저장된 것)나 연산이 있어도 평면을 지웠다.
+
+async function createPlaneViaPanel(fileId: string) {
+  store.set(fileIdAtom, fileId);
+  store.set(setupRefPlaneModeAtom, {
+    step: "select-plane",
+    selectionMode: "face",
+    basePlane: { origin: { x: 0, y: 0, z: 0 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 1, z: 0 }, normal: { x: 0, y: 0, z: 1 } },
+    basePlaneName: "XY Plane",
+  });
+  const { default: PlaneDefinitionPanel } = await import("src/features/setup/components/PlaneDefinitionPanel");
+  findButton((PlaneDefinitionPanel as unknown as () => React.ReactNode)(), "OK")?.props.onClick?.();
+  const created = store.get(setupReferencePlanesAtom)[0];
+  return { history: store.get(setupGlobalHistoryAtom), planeKey: planeKeyFromSketchPlane(created.plane) };
+}
+
+test("평면에 스케치를 열어 둔 동안에는 평면 생성을 undo 하지 않는다", async () => {
+  const { history, planeKey } = await createPlaneViaPanel("open-sketch");
+  store.set(enterSketchModeAtom, { planeKey, planeName: "Sketch 1" });
+
+  assert.equal(history.canUndo, false);
+  assert.equal(history.undo(), null);
+  assert.equal(store.get(setupReferencePlanesAtom).length, 1);
+
+  store.set(exitSketchModeAtom);
+  assert.equal(history.undo(), "model");
+  assert.equal(store.get(setupReferencePlanesAtom).length, 0);
+});
+
+test("평면에 저장된 스케치나 연산이 있으면 평면 생성을 undo 하지 않는다", async () => {
+  const { history, planeKey } = await createPlaneViaPanel("saved-sketch");
+  store.set(setupSketchEntriesAtom, [{ planeKey, planeName: "Sketch 1" } as never]);
+  // 고치기 전에는 저장된 스케치가 쓰는 평면이 지워졌다
+  assert.equal(history.undo(), null);
+  assert.equal(store.get(setupReferencePlanesAtom).length, 1);
+
+  store.set(setupSketchEntriesAtom, []);
+  store.set(setupOperationsAtom, [
+    { operation: { id: "op1", type: "pad", sketchPlaneKey: planeKey, profileIds: [], depth: 10, direction: "normal" }, sketchPlaneName: "Sketch 1" },
+  ]);
+  assert.equal(history.undo(), null);
+  assert.equal(store.get(setupReferencePlanesAtom).length, 1);
+
+  store.set(setupOperationsAtom, []);
+  assert.equal(history.undo(), "model");
+  assert.equal(store.get(setupReferencePlanesAtom).length, 0);
 });

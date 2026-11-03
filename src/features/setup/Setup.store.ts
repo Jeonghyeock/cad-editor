@@ -1,8 +1,9 @@
-import { atom, type createStore } from "jotai";
+import { atom, type createStore, type Getter } from "jotai";
 import { selectAtom } from "jotai/utils";
 
 import { globalDataAtom } from "src/shared/stores/File.store";
 
+import { planeKeyFromSketchPlane } from "./rendering/SketchPlaneManager";
 import type {
   ChamferModeState,
   ConnectContinuity,
@@ -253,6 +254,26 @@ export const setupReferencePlanesAtom = atom(
     set(setupAtom, (p) => ({ ...p, referencePlanes }));
   },
 );
+
+/**
+ * 참조 평면 목록을 next 로 바꿔 놓아도 되는지 — 평면 생성·삭제의 undo/redo 판정 (useHistoricalAtom 의 canApply).
+ * 지금 있는 평면 중 next 에서 빠지는 것을 스케치(열린 것·저장된 것)나 연산이 쓰고 있으면 false — 지우면 그 스케치가
+ * 기준 평면을 잃는다. 이때 히스토리는 그 엔트리 앞에서 멈춘다(스케치 경계 정책과 같음). 평면과 스케치·연산은
+ * planeKey(origin+normal)로 이어진다.
+ */
+export function canSetReferencePlanes(next: ReferencePlane[], get: Getter): boolean {
+  const kept = new Set(next.map((p) => p.id));
+  const removed = get(setupReferencePlanesAtom).filter((p) => !kept.has(p.id));
+  if (removed.length === 0) return true;
+  const setup = get(setupAtom);
+  const used = new Set<string>();
+  if (setup.viewState.sketchPlaneKey) used.add(setup.viewState.sketchPlaneKey);
+  for (const sketch of setup.sketches) used.add(planeKeyFromSketchPlane(sketch.plane));
+  for (const key of Object.keys(get(setupBakedSketchesAtom))) used.add(key);
+  for (const entry of get(setupSketchEntriesAtom)) used.add(entry.planeKey);
+  for (const entry of get(setupOperationsAtom)) used.add(entry.operation.sketchPlaneKey);
+  return !removed.some((p) => used.has(planeKeyFromSketchPlane(p.plane)));
+}
 
 // Reference plane 생성 중 mode / 미리보기 / sketch plane / 평면 선택 상태 — **standalone**
 // (생성 중 임시 상태, 임시 UI — mode 스코프 불필요).
