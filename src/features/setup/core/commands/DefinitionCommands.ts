@@ -8,6 +8,9 @@ import type { GlobalCommand } from "../GlobalCommand";
 /** Shape + 구성 geometry + 관련 constraint를 삭제하는 커맨드 (undo 지원) */
 export class DeleteShapeCommand implements GlobalCommand {
   readonly label = "Delete Shape";
+  // 열린 스케치의 store 를 직접 바꾸므로 히스토리가 그 스케치에 묶는다 — 다른 스케치에서 undo 하면 지운 기하가
+  // 그 스케치에 들어간다.
+  readonly sketchScoped = true;
   // 지운 shape 와 지운 변을 같이 쓰던 이웃 shape (undo 때 이미지·설정째 복원)
   private _removedShapes: ShapeSnapshot[] = [];
   private _removedGeometries: { id: string; data: ReturnType<SketchGeometryStore["geometries"]["get"]> }[] = [];

@@ -206,3 +206,24 @@ test("지운 스케치의 드래그 엔트리는 같은 평면에 새로 만든 
   assert.equal(history.undo(), "geometry");
   assert.deepEqual(lineOf(store, "L"), { x1: 0, y1: 0, x2: 10, y2: 5 });
 });
+
+// 면(Shape) 삭제는 스케치 store 를 직접 바꾸는 GlobalCommand(DeleteShapeCommand)라 기하 엔트리의 스케치 경계를 거치지
+// 않았다 — XY 에서 원을 면으로 골라 지우고 닫은 뒤 YZ 에서 Ctrl+Z 하면 XY 의 원이 YZ 에 들어갔다.
+
+test("XY 에서 면으로 지운 원이, 닫고 YZ 를 연 뒤의 Ctrl+Z 로 YZ 에 들어오지 않는다", async () => {
+  const { DeleteShapeCommand } = await import("src/features/setup/core/commands/DefinitionCommands");
+  const { store, history } = await createSketch();
+  history.setActiveSketch("XY");
+  store.execute(new AddGeometryCommand({ type: "circle", id: "c1", cx: 0, cy: 0, r: 15 }));
+  history.executeCommand(new DeleteShapeCommand("shape_c1", store));
+  assert.equal(store.geometries.has("c1"), false);
+  closeSketch(store);
+  history.setActiveSketch(null);
+
+  history.setActiveSketch("YZ");
+  openSketch(store);
+  const undone = history.undo();
+  assert.equal(store.geometries.has("c1"), false);
+  assert.equal(undone, null);
+  assert.equal(history.canUndo, false);
+});

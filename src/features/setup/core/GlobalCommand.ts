@@ -11,4 +11,9 @@ export interface GlobalCommand {
    */
   canUndo?(): boolean;
   canRedo?(): boolean;
+  /**
+   * true 면 지금 열린 스케치의 기하 store 를 직접 바꾸는 커맨드다 (DeleteShapeCommand). 히스토리는 기하 엔트리처럼
+   * 실행한 스케치를 기록해 그 스케치가 열려 있을 때만 undo/redo 한다.
+   */
+  readonly sketchScoped?: boolean;
 }
