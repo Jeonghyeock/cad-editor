@@ -28,6 +28,7 @@ import type { SketchConstraintStore } from "../../sketch/constraints/SketchConst
 import { computeDependencyHighlight } from "../../sketch/DependencyGraph";
 import { orderLineIdsByCoincidence } from "../../sketch/shapeDetector";
 import { isReferenceId, REF_ORIGIN_ID, REF_X_AXIS_ID, REF_Y_AXIS_ID, type SketchGeometryStore } from "../../sketch/SketchGeometryStore";
+import { clearClosedSketch, startBlankSketch } from "../../sketch/sketchStoreReset";
 import { DimensionDrawTool } from "../../sketch/tools/DimensionDrawTool";
 import type { DrawTool } from "../../sketch/tools/DrawTool";
 import "../../sketch/tools/registerAllTools";
@@ -458,10 +459,10 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
           restoreSketch(saved);
           s.removeBakedSketch(plane);
         } else {
-          // 새 스케치: 자동 번호 이름 부여 + 참조 기하 주입 (카메라 전환 완료 후)
+          // 새 스케치: 자동 번호 이름 부여 + 이전 스케치 잔여물 없이 참조 기하만 주입 (카메라 전환 완료 후)
           sketchCounterRef.current += 1;
           currentPlaneNameRef.current = `Sketch ${sketchCounterRef.current}`;
-          geometryStoreRef.current.injectReferenceGeometry();
+          startBlankSketch(geometryStoreRef.current, constraintStoreRef.current);
         }
 
         // viewState 에 face source 까지 영속화 — 파일 복원 시 applyCrossSection 재호출 위해.
@@ -535,8 +536,8 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
         restoreSketch(saved);
         s.removeBakedSketch(sketchPlane);
       } else if (!existingEntry) {
-        // 새 스케치: 참조 기하 주입
-        geometryStoreRef.current.injectReferenceGeometry();
+        // 새 스케치: 이전 스케치 잔여물 없이 참조 기하만 주입
+        startBlankSketch(geometryStoreRef.current, constraintStoreRef.current);
       }
 
       setActiveSketchName(currentPlaneNameRef.current);
@@ -573,8 +574,8 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
         restoreSketch(savedSketch);
         s.removeBakedSketch(sketchPlane);
       } else {
-        // empty re-enter — reference geometry 만 inject
-        geometryStoreRef.current.injectReferenceGeometry();
+        // empty re-enter — 이전 스케치 잔여물 없이 reference geometry 만 inject
+        startBlankSketch(geometryStoreRef.current, constraintStoreRef.current);
       }
 
       setActiveSketchName(currentPlaneNameRef.current);
@@ -757,10 +758,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
       }
 
       // shape 만 보존, line geometry / constraint 는 baked sketch 가 SSOT 이므로 clear.
-      const preservedShapes = geoStore.shapes.slice();
-      geoStore.clear();
-      geoStore.shapes = preservedShapes;
-      geoStore.requestRender();
+      clearClosedSketch(geoStore, constraintStoreRef.current);
     }
 
     // 그리기 도구 상태 초기화
@@ -1052,7 +1050,7 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
             restoreSketch(saved);
             scene.removeBakedSketch(plane);
           } else {
-            geometryStoreRef.current.injectReferenceGeometry();
+            startBlankSketch(geometryStoreRef.current, constraintStoreRef.current);
           }
           setActiveSketchName(planeName);
           setSketchPending(false);
