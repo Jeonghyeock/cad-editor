@@ -7,8 +7,12 @@ import type { OperationTreeEntry, PadPocketOperation, SerializedGeometry } from 
 
 import type { GlobalCommand } from "../GlobalCommand";
 
+import { SceneTaskQueue } from "./SceneTaskQueue";
+
 export class EditPadCommand implements GlobalCommand {
   readonly label: string;
+  /** 솔리드 교체를 차례로 — 새/이전 op 가 같은 id 라, 결과 전에 undo 하면 두 add 가 겹쳐 고아 메시가 남는다. */
+  private _sceneTasks = new SceneTaskQueue();
 
   constructor(
     private _oldOperation: PadPocketOperation,
@@ -32,16 +36,17 @@ export class EditPadCommand implements GlobalCommand {
       prev.map((e) => (e.operation.id === oldId ? newEntry : e)),
     );
 
-    const scene = this._getScene();
-    if (scene) {
+    this._sceneTasks.run(() => {
+      const scene = this._getScene();
+      if (!scene) return;
       // 기존 솔리드 제거
       scene.removeExtrudedSolid(oldId);
       if (this._oldOperation.targetOperationId) {
         scene.restoreSourceVisibility(this._oldOperation.targetOperationId);
       }
       // 새 솔리드 생성
-      scene.addExtrudedSolid(this._newOperation, this._geometries);
-    }
+      return scene.addExtrudedSolid(this._newOperation, this._geometries);
+    });
   }
 
   undo(): void {
@@ -55,15 +60,16 @@ export class EditPadCommand implements GlobalCommand {
       prev.map((e) => (e.operation.id === newId ? oldEntry : e)),
     );
 
-    const scene = this._getScene();
-    if (scene) {
+    this._sceneTasks.run(() => {
+      const scene = this._getScene();
+      if (!scene) return;
       // 새 솔리드 제거
       scene.removeExtrudedSolid(newId);
       if (this._newOperation.targetOperationId) {
         scene.restoreSourceVisibility(this._newOperation.targetOperationId);
       }
       // 이전 솔리드 복원
-      scene.addExtrudedSolid(this._oldOperation, this._geometries);
-    }
+      return scene.addExtrudedSolid(this._oldOperation, this._geometries);
+    });
   }
 }

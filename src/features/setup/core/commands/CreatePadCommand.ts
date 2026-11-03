@@ -9,8 +9,12 @@ import type { OperationTreeEntry, PadPocketOperation, SerializedGeometry } from 
 
 import type { GlobalCommand } from "../GlobalCommand";
 
+import { SceneTaskQueue } from "./SceneTaskQueue";
+
 export class CreatePadCommand implements GlobalCommand {
   readonly label: string;
+  /** 솔리드 add(비동기)·remove 를 차례로 — 결과가 나오기 전에 undo/redo 해도 늦은 add 가 씬을 덮어쓰지 않게. */
+  private _sceneTasks = new SceneTaskQueue();
   /**
    * execute 시점에 새로 hiddenShapeIds 에 추가한 id 들의 백업.
    * undo 시 그것만 remove — 사용자가 그 사이 manually hide 한 다른 shape 의 상태는 보존.
@@ -36,10 +40,9 @@ export class CreatePadCommand implements GlobalCommand {
     };
     this._setOperations((prev) => [...prev, entry]);
 
-    const scene = this._getScene();
-    if (scene) {
-      scene.addExtrudedSolid(this._operation, this._geometries);
-    }
+    this._sceneTasks.run(() =>
+      this._getScene()?.addExtrudedSolid(this._operation, this._geometries),
+    );
 
     // CATIA 식 — source shape 자동 hide. profileIds 중 이미 hidden 아닌 id 만 추가하고
     // _addedHiddenIds 에 백업 → undo 시 그것만 remove.
@@ -61,14 +64,15 @@ export class CreatePadCommand implements GlobalCommand {
     const opId = this._operation.id;
     this._setOperations((prev) => prev.filter((e) => e.operation.id !== opId));
 
-    const scene = this._getScene();
-    if (scene) {
+    this._sceneTasks.run(() => {
+      const scene = this._getScene();
+      if (!scene) return;
       scene.removeExtrudedSolid(opId);
       // 소스 솔리드 다시 표시 (CSG 연산이었을 경우)
       if (this._operation.targetOperationId) {
         scene.restoreSourceVisibility(this._operation.targetOperationId);
       }
-    }
+    });
 
     // execute 가 추가한 hidden id 만 remove (그 외 manually hidden 된 건 보존).
     if (this._addedHiddenIds.size > 0) {
