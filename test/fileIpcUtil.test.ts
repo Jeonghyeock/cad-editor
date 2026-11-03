@@ -183,3 +183,20 @@ test("경로 비교: Windows 는 대소문자와 구분자를 가리지 않고, 
   assert.ok(isSameFilePath("/work/part.cad", "/work/./part.cad", "linux"));
   assert.ok(!isSameFilePath("/work/Part.cad", "/work/part.cad", "linux"));
 });
+
+test("이미 연 파일은 디스크에서 다시 읽지 않고 그 탭으로 바꾼다(깨졌거나 쓰는 중이어도)", async () => {
+  // 고치기 전에는 읽고 JSON.parse 한 뒤에 경로를 봐서, 쓰는 중이라 깨진 파일을 다시 열면 false 로 아무 일도 없었다
+  const fileIpcUtil = loadFileIpcUtil();
+  const dir = tempDir();
+  const a = path.join(dir, "a.cad");
+  const b = path.join(dir, "b.cad");
+  writeCad(a, { fileId: "a" });
+  writeCad(b, { fileId: "b" });
+  assert.ok(await fileIpcUtil.openFile(true, a));
+  const fileIdA = fileIpcUtil.getFileId();
+  assert.ok(await fileIpcUtil.openFile(true, b));
+
+  fs.writeFileSync(a, '{"fileId": "a", "setup": {', "utf-8");
+  assert.equal(await fileIpcUtil.openFile(true, a), true);
+  assert.equal(fileIpcUtil.getFileId(), fileIdA);
+});
