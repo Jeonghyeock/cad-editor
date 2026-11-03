@@ -62,7 +62,8 @@ export function projectBRepEdge(
         y: u.z * v.x - u.x * v.z,
         z: u.x * v.y - u.y * v.x,
       };
-      const dot = Math.abs(edge.axis.x * normal.x + edge.axis.y * normal.y + edge.axis.z * normal.z);
+      const signedDot = edge.axis.x * normal.x + edge.axis.y * normal.y + edge.axis.z * normal.z;
+      const dot = Math.abs(signedDot);
 
       if (dot > 0.99) {
         // 원이 평면과 평행 → circle 또는 arc
@@ -80,8 +81,11 @@ export function projectBRepEdge(
           const endPt = circlePointAt(edge, edge.endParam);
           const p1 = proj(startPt);
           const p2 = proj(endPt);
-          const startAngle = Math.atan2(p1.y - center2d.y, p1.x - center2d.x);
-          const endAngle = Math.atan2(p2.y - center2d.y, p2.x - center2d.x);
+          const angle1 = Math.atan2(p1.y - center2d.y, p1.x - center2d.x);
+          const angle2 = Math.atan2(p2.y - center2d.y, p2.x - center2d.x);
+          // 원의 매개변수는 축 기준 반시계로 돈다. 축이 u×v 와 반대면 2D 에서는 시계 방향이라,
+          // 스케치 호(startAngle→endAngle 반시계)로 그대로 넣으면 보각 호(90° 가 270°)가 된다 → 양 끝을 바꾼다
+          const [startAngle, endAngle] = signedDot < 0 ? [angle2, angle1] : [angle1, angle2];
           return {
             type: "arc",
             id: generateProjectionId(),
