@@ -94,9 +94,9 @@ async function insertImageRectangle(store: SketchGeometryStore) {
 const IMAGE = "data:image/png;base64,iVBORw0KGgo=";
 
 function assertImageShapeRestored(store: SketchGeometryStore, shapeId: string) {
-  assert.equal(store.shapes.length, 1);
-  const shape = store.shapes[0];
-  assert.equal(shape.id, shapeId);
+  const restored = store.shapes.filter((s) => s.id === shapeId);
+  assert.equal(restored.length, 1);
+  const shape = restored[0];
   assert.equal(shape.origin, "declared");
   assert.equal(shape.image, IMAGE);
   assert.equal(shape.imageVisibility, false);
@@ -144,4 +144,29 @@ test("이미지를 넣은 사각형의 변을 Trim 처럼 갈라 바꾸고 undo 
 
   history.undo();
   assertImageShapeRestored(store, shapeId);
+});
+
+test("변을 같이 쓰는 이웃 shape 를 면으로 지우고 undo 하면 남은 shape 의 이미지·설정까지 돌아온다", async () => {
+  // 고치기 전에는 지운 shape 만 되돌려, 공유 변이 지워질 때 recomputeShapes 가 버린 이웃 shape 는 돌아오지 않았다
+  const { store, history } = await createSketch();
+  const { AddGeometryCommand } = await import("src/features/setup/sketch/commands/AddGeometryCommand");
+  const { DeleteShapeCommand } = await import("src/features/setup/core/commands/DefinitionCommands");
+  const imageShapeId = await insertImageRectangle(store);
+
+  // 오른쪽에 붙은 사각형 — 이미지 사각형의 오른변 r 을 같이 쓴다
+  store.execute(new AddGeometryCommand({ type: "line", id: "t2", x1: 60, y1: 0, x2: 120, y2: 0 }));
+  store.execute(new AddGeometryCommand({ type: "line", id: "r2", x1: 120, y1: 0, x2: 120, y2: 30 }));
+  store.execute(new AddGeometryCommand({ type: "line", id: "b2", x1: 120, y1: 30, x2: 60, y2: 30 }));
+  const neighborId = store.registerShape(["r", "t2", "r2", "b2"]).id;
+
+  history.executeCommand(new DeleteShapeCommand(neighborId, store));
+  // 다른 기하 명령이 recomputeShapes 를 부르면, 오른변을 잃은 이미지 사각형이 버려진다
+  store.execute(new AddGeometryCommand({ type: "point", id: "p1", x: 200, y: 200 }));
+  assert.equal(store.shapes.some((s) => s.id === imageShapeId), false);
+
+  history.undo();
+  history.undo();
+  store.recomputeFaces();
+  assertImageShapeRestored(store, imageShapeId);
+  assert.equal(store.shapes.filter((s) => s.id === neighborId).length, 1);
 });
