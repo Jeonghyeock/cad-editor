@@ -61,10 +61,24 @@ const sketches: Record<string, SerializedSketch> = {
 };
 const geometriesOf = (key: string) => new Map(sketches[key].geometries!.map((g) => [g.id, g]));
 
-async function createManager() {
+async function createManager(featureTree?: object) {
   const { SolidOperationManager } = await import("src/features/setup/rendering/SolidOperationManager");
-  return new SolidOperationManager(new THREE.Scene(), (key) => sketches[key] ?? null);
+  return new SolidOperationManager(new THREE.Scene(), (key) => sketches[key] ?? null, featureTree as never);
 }
+
+// OcctFeatureTree(PartDocument) 대역 — 대상과 상관없이 누적 파트에 Pad/Pocket 을 더한 결과를 돌려준다
+const featureTreeCalls: string[] = [];
+const fakeFeatureTree = {
+  addSketchFromHandle: async () => ({ id: "sketch", outputHandle: 1 }),
+  addPad: async () => {
+    featureTreeCalls.push("addPad");
+    return { id: "feature-pad", outputHandle: 2, mesh: nativeBox().mesh };
+  },
+  addPocket: async () => {
+    featureTreeCalls.push("addPocket");
+    return { id: "feature-pocket", outputHandle: 3, mesh: nativeBox().mesh };
+  },
+};
 
 const pad = (op: Partial<PadPocketOperation>): PadPocketOperation => ({
   id: "pad",
@@ -201,4 +215,33 @@ test("native 부울 연산 뒤 메시 변환이 실패하면 원본을 숨기지
   assert.equal(manager.extrudedSolids.get("pad")!.visible, true);
   manager.setExtrudedSolidsVisible(true);
   assert.equal(manager.extrudedSolids.get("pad")!.visible, true);
+});
+
+test("폴백으로 만든 솔리드를 대상으로 한 Pocket 은 feature tree·native 대신 폴백으로 자른다", async () => {
+  // 고치기 전에는 대상에 native shape 가 없어도 feature tree 경로를 타, 대상과 무관한 누적 파트를 자른
+  // 결과가 나왔다. Draft Pad 는 폴백으로 만들어지므로 이 경우가 더 잦아졌다.
+  featureTreeCalls.length = 0;
+  const manager = await createManager(fakeFeatureTree);
+  await manager.addExtrudedSolid(pad({ draftAngle: 10 }), geometriesOf("disk"));
+  calls.length = 0;
+  await manager.addExtrudedSolid(
+    pad({ id: "pocket", type: "pocket", sketchPlaneKey: "hole", targetOperationId: "pad" }),
+    geometriesOf("hole"),
+  );
+  assert.deepEqual(featureTreeCalls, []);
+  assert.deepEqual(calls, [], "native 도 부르지 않아야 한다");
+  boundingBox(manager.extrudedSolids.get("pocket"));
+  assert.equal(manager.extrudedSolids.get("pad")!.visible, false);
+});
+
+test("native 로 만든 솔리드를 대상으로 한 Pocket 은 전처럼 feature tree 로 만든다", async () => {
+  featureTreeCalls.length = 0;
+  const manager = await createManager(fakeFeatureTree);
+  await manager.addExtrudedSolid(pad({}), geometriesOf("disk"));
+  await manager.addExtrudedSolid(
+    pad({ id: "pocket", type: "pocket", sketchPlaneKey: "hole", targetOperationId: "pad" }),
+    geometriesOf("hole"),
+  );
+  assert.deepEqual(featureTreeCalls, ["addPocket"]);
+  assert.equal(manager.extrudedSolids.get("pad")!.visible, false);
 });

@@ -180,8 +180,9 @@ export class SolidOperationManager implements EntityPicker {
     if (nativeResult) return;
 
     // 폴백으로 만든 솔리드에는 native shape 가 없다. 이전 빌드의 handle 이 남아 있으면 후속 native
-    // Pocket 이 옛 형상(예: Draft 편집 전)을 자르므로 지운다.
+    // Pocket 이 옛 형상(예: Draft 편집 전)을 자르므로 지운다. feature tree 기록도 같은 이유로 지운다.
     operationShapeHandles.delete(operation.id);
+    this._opToFeatureId.delete(operation.id);
 
     // Fallback: 기존 mesh-based CSG
     const toolMesh = this._createExtrudedMesh(operation, geometries);
@@ -214,6 +215,11 @@ export class SolidOperationManager implements EntityPicker {
     toolMesh.name = `extruded-${operation.id}`;
     this._putSolid(operation.id, toolMesh);
     this._notifyChange();
+  }
+
+  // native(BooleanNative handle 또는 feature tree)로 만든 솔리드인지 — 아니면 native 부울 연산의 대상이 될 수 없다
+  private _hasNativeShape(operationId: string): boolean {
+    return operationShapeHandles.has(operationId) || this._opToFeatureId.has(operationId);
   }
 
   // 솔리드 메시를 씬과 목록에 넣는다. 후속 연산에 소비된 원본을 다시 만드는 경우(원본 편집, 원본
@@ -340,6 +346,11 @@ export class SolidOperationManager implements EntityPicker {
     // depth 만큼 곧은 기둥이 만들어지고 성공으로 끝나 프리뷰와 결과가 달라지므로, 이 옵션은 프리뷰와
     // 같은 Three.js 폴백으로 만든다.
     if (operation.direction === "two-dimensions" || (operation.draftAngle ?? 0) > 0) return false;
+
+    // 대상 솔리드를 폴백으로 만들어 native shape 가 없으면 native 로 대상과 합칠 수 없다. feature tree 는
+    // 대상과 무관한 누적 파트를 자르고, BooleanNative 는 대상 없이 따로 만든다(Pocket 은 실패). 폴백 CSG 로
+    // 대상 메시와 직접 연산한다.
+    if (operation.targetOperationId && !this._hasNativeShape(operation.targetOperationId)) return false;
 
     // OcctFeatureTree 경로는 targetOperationId 가 있을 때만 시도. PartDocument 가 모든
     // feature 를 누적 fuse 하므로 independent pad (target 없음) 의 결과 mesh 가 직전 pad
@@ -883,6 +894,7 @@ export class SolidOperationManager implements EntityPicker {
 
     // 폴백 솔리드에는 native shape 가 없다 — 이전 빌드의 handle 을 지운다 (addExtrudedSolid 와 같은 이유).
     operationShapeHandles.delete(operation.id);
+    this._opToFeatureId.delete(operation.id);
 
     // Fallback: mesh-based
     const mesh = this._createRevolvedMesh(operation, geometries, false);
