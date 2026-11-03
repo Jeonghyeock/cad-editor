@@ -170,7 +170,6 @@ export default class SetupScene {
       this._sceneManager.scene,
       this._sceneManager.renderer,
       (plane?: SketchPlane) => this._sketchPlaneManager.getPlaneKey(plane),
-      () => this._sketchPlaneManager.sketchPlaneData,
     );
     this._bakedSketchManager.onSceneChanged = () => this._sceneManager.requestRender();
     // baked role-shape label ("Design Area" / "End Effector #N" 등) 도 SolidOperationManager

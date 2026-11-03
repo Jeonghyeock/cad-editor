@@ -34,6 +34,7 @@ import { DimensionDrawTool } from "../../sketch/tools/DimensionDrawTool";
 import type { DrawTool } from "../../sketch/tools/DrawTool";
 import "../../sketch/tools/registerAllTools";
 import { toolRegistry } from "../../sketch/tools/ToolRegistry";
+import { migrateLegacyFacePlaneKeys } from "../../utils/legacyPlaneKeys";
 import { omitUndefined } from "../../utils/objectUtils";
 import { deserializeSetupData } from "../../utils/serialization";
 
@@ -999,10 +1000,12 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
 
     const SetupData = pendingRestore;
     const restoredEntries: SketchTreeEntry[] = [];
+    const restoredPlanes = new Map<string, SketchPlane>();
     for (const sketch of SetupData.sketches) {
       const key = scene.getPlaneKey(sketch.plane);
       if (key) {
         scene.restoreSavedSketch(key, sketch);
+        restoredPlanes.set(key, sketch.plane);
         restoredEntries.push({
           planeKey: key,
           // 사용자 부여한 이름 (sketch.name) 우선, 없으면 planeKey fallback (구버전 호환)
@@ -1013,20 +1016,31 @@ const SetupCanvas = ({ closeSketchRef, bakeCurrentSketchRef, bakeOriginXYRef, pi
     }
     if (restoredEntries.length > 0) store.set(setupSketchEntriesAtom, restoredEntries);
 
+    // 구버전 파일의 STEP face 스케치 연산은 오프셋 전 STEP 좌표 키를 가리켜, 위에서 복원한 world 키와
+    // 어긋난다. 모델 오프셋으로 짝을 찾아 키를 옮기고 저장 대상(operations atom)에도 반영한다.
+    // 모델은 useInputSceneController 의 모델 동기화 effect 가 이미 scene 에 넣었다.
+    const modelOffsets = scene.getStepModelIds().map((id) => scene.getModelOffset(id));
+    const restoredOperations = migrateLegacyFacePlaneKeys(SetupData.operations, restoredPlanes, modelOffsets);
+    if (restoredOperations !== SetupData.operations) store.set(setupOperationsAtom, restoredOperations);
+
     // Solid operations (Pad/Pocket/Revolve) 재빌드 — 파일 전환 effect 가 scene.clearAllSketches
     // 로 SolidOperationManager 를 비웠고, sketches 가 위 loop 에서 복원되어 plane 기하 사용 가능.
     // sketchPlaneKey 별로 rebuildOperationsForSketch 호출 (내부에서 같은 plane 의 op 만 필터).
-    if (SetupData.operations.length > 0) {
+    if (restoredOperations.length > 0) {
       const planeKeys = new Set<string>();
-      for (const op of SetupData.operations) {
+      for (const op of restoredOperations) {
         if ("sketchPlaneKey" in op.operation) {
           planeKeys.add(op.operation.sketchPlaneKey);
         }
       }
       for (const planeKey of planeKeys) {
-        scene.rebuildOperationsForSketch(planeKey, SetupData.operations);
+        scene.rebuildOperationsForSketch(planeKey, restoredOperations);
       }
     }
+    // 여기서 모든 연산을 다시 만들었으므로 위 안전망 effect 는 건너뛰게 한다. 위의 키 이전이 operations
+    // atom 을 바꾸면 안전망이 곧바로 다시 돌아, 아직 끝나지 않은 같은 op 의 비동기 addExtrudedSolid 와
+    // 겹치고 먼저 만든 메시가 scene 에 고아로 남는다.
+    operationsRestoredRef.current = true;
 
     // shapes/definitions/EE는 SerializedSketch.shapes에 포함 — 스케치 진입 시 restoreSketch에서 복원
     // 3D 모드에서 geoStore에 직접 조작하면 geometry 없이 face만 렌더됨 (ghost face)
