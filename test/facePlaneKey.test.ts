@@ -149,26 +149,64 @@ const legacyPad: PadPocketOperation = {
   id: "pad", type: "pad", sketchPlaneKey: legacyLocalKey, profileIds: [], depth: 10, direction: "normal",
 };
 
+// 예전 파일의 키를 가진 저장 데이터 (연산·스케치 모드 viewState·스케치 숨김 목록)
+const legacyFile = () => ({
+  operations: [{ operation: legacyPad, sketchPlaneName: "Sketch 1" }] as OperationTreeEntry[],
+  viewState: { mode: "2d-section" as const, currentScene: 0, sketchPlaneKey: legacyLocalKey, sketchPlaneName: "Sketch 1" },
+  visibility: {
+    hiddenModels: [], hiddenBodies: {}, deletedBodies: {}, hiddenOperations: [], hiddenShapeIds: [],
+    hiddenSketches: [legacyLocalKey],
+    hiddenSketchPortions: ["0,0,0|0,0,1", legacyLocalKey],
+    constraintVisible: true,
+    constraintVisibilityFilter: { geometric: true, dimensional: true },
+  },
+});
+const restoredPlanes = new Map([[worldKey, worldPlane]]);
+
 test("고치기 전에 저장한 파일도 열 때 Pad 키를 월드 키로 옮겨 Pad 를 다시 만든다", async () => {
   const { migrateLegacyFacePlaneKeys } = await import("src/features/setup/utils/legacyPlaneKeys");
-  const operations = [{ operation: legacyPad, sketchPlaneName: "Sketch 1" }];
-  const migrated = migrateLegacyFacePlaneKeys(
-    operations,
-    new Map([[worldKey, worldPlane]]),
-    [new THREE.Vector3(5, 0, 5), OFFSET], // 로드된 모델들의 오프셋
-  );
-  assert.equal(migrated[0].operation.sketchPlaneKey, worldKey);
+  const file = legacyFile();
+  // 로드된 모델들의 오프셋
+  const migrated = migrateLegacyFacePlaneKeys(file, restoredPlanes, [new THREE.Vector3(5, 0, 5), OFFSET]);
+  assert.equal(migrated.operations[0].operation.sketchPlaneKey, worldKey);
   assert.equal(legacyPad.sketchPlaneKey, legacyLocalKey, "원래 operation 객체는 바꾸지 않는다");
-  const reopened = await reopen([legacySketch], migrated);
+  const reopened = await reopen([legacySketch], migrated.operations);
   assert.ok(reopened.solids.extrudedSolids.get("pad") instanceof THREE.Mesh);
 });
 
-test("오프셋이 맞는 스케치가 없거나 이미 맞는 키는 그대로 둔다", async () => {
+test("스케치 모드 viewState·스케치 숨김 목록의 예전 키도 같은 규칙으로 옮긴다", async () => {
+  // 고치기 전에는 연산의 키만 옮겨, 스케치 모드로 저장한 예전 파일은 옛 키로 다시 들어가 빈 스케치와
+  // 중복 entry 를 만들고, 숨겨 둔 면 스케치가 다시 보였다
   const { migrateLegacyFacePlaneKeys } = await import("src/features/setup/utils/legacyPlaneKeys");
-  const orphan = [{ operation: legacyPad, sketchPlaneName: "Sketch 1" }];
-  assert.equal(migrateLegacyFacePlaneKeys(orphan, new Map([[worldKey, worldPlane]]), [new THREE.Vector3(1, 2, 3)]), orphan);
-  const current = [{ operation: { ...legacyPad, sketchPlaneKey: worldKey }, sketchPlaneName: "Sketch 1" }];
-  assert.equal(migrateLegacyFacePlaneKeys(current, new Map([[worldKey, worldPlane]]), [OFFSET]), current);
+  const migrated = migrateLegacyFacePlaneKeys(legacyFile(), restoredPlanes, [OFFSET]);
+  assert.equal(migrated.viewState.sketchPlaneKey, worldKey);
+  assert.deepEqual(migrated.visibility.hiddenSketches, [worldKey]);
+  assert.deepEqual(migrated.visibility.hiddenSketchPortions, ["0,0,0|0,0,1", worldKey]);
+});
+
+test("오프셋이 맞는 스케치가 없거나, 이미 맞거나, 스케치 없이도 유효한 키는 그대로 둔다", async () => {
+  const { migrateLegacyFacePlaneKeys } = await import("src/features/setup/utils/legacyPlaneKeys");
+  const orphan = legacyFile();
+  assert.equal(migrateLegacyFacePlaneKeys(orphan, restoredPlanes, [new THREE.Vector3(1, 2, 3)]), orphan);
+  const once = migrateLegacyFacePlaneKeys(legacyFile(), restoredPlanes, [OFFSET]);
+  assert.equal(migrateLegacyFacePlaneKeys(once, restoredPlanes, [OFFSET]), once, "이미 옮긴 데이터는 그대로");
+  // 원점 평면·참조 평면 키는 스케치가 없어도(빈 스케치 재진입) 유효하다 — 호출자가 알려 준다
+  const known = legacyFile();
+  assert.equal(migrateLegacyFacePlaneKeys(known, restoredPlanes, [OFFSET], (key) => key === legacyLocalKey), known);
+});
+
+test("모델이 늦게 올라와도 다시 시도하면 그때 옮긴다", async () => {
+  // SetupCanvas 는 pendingRestore 때 한 번, 모델 목록이 바뀔 때마다 다시 부른다
+  const { migrateLegacyFacePlaneKeys } = await import("src/features/setup/utils/legacyPlaneKeys");
+  const file = legacyFile();
+  assert.equal(migrateLegacyFacePlaneKeys(file, restoredPlanes, []), file, "모델이 없으면 옮기지 못한다");
+  assert.equal(migrateLegacyFacePlaneKeys(file, restoredPlanes, [OFFSET]).operations[0].operation.sketchPlaneKey, worldKey);
+});
+
+test("planeKey 형식은 SketchPlaneManager 의 planeKey·parsePlaneKey 한 곳에서 오간다", async () => {
+  const { parsePlaneKey, planeKey } = await import("src/features/setup/rendering/SketchPlaneManager");
+  assert.deepEqual(parsePlaneKey(planeKey(110, 50, 210, 0, 1, 0)), { origin: { x: 110, y: 50, z: 210 }, normal: n });
+  assert.equal(parsePlaneKey("not-a-key"), null);
 });
 
 test("다시 연 스케치의 shape 는 복원 키를 planeKey 로 가진다", async () => {
