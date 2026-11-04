@@ -1,10 +1,12 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SerializedGeometry } from "src/features/setup/Setup.type";
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
-import { createSketch, distance, sweep, userGeometries, vertexOf } from "./sketchHarness";
+import { createSketch, distance, sweep, userGeometries, vertexOf } from "./helpers/sketch";
 
 type Point = { x: number; y: number };
 const CORNERS: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }];
@@ -12,7 +14,7 @@ const CORNERS: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, {
 // (0,0)-(100,60) 사각형(Rectangle 도구로 그림)
 async function rectangleSketch(): Promise<SketchGeometryStore> {
   const { RectangleDrawTool } = await import("src/features/setup/sketch/tools/RectangleDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const rect = new RectangleDrawTool();
   rect.onPointerDown(store, { x: 0, y: 0 }, { x: 0, y: 0 });
   rect.onPointerDown(store, { x: 100, y: 60 }, { x: 100, y: 60 });

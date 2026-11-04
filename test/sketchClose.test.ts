@@ -1,14 +1,7 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
-
-// SketchGeometryStore → overlayConstants 가 svg 아이콘을 import 하고 Image 로 미리 읽는다.
-// node 에는 둘 다 없으므로 svg 는 경로 문자열로, Image 는 아무것도 안 하는 객체로 대신한 뒤 불러온다.
-require.extensions[".svg"] = (m: NodeJS.Module, filename: string) => {
-  m.exports = filename;
-};
-(globalThis as Record<string, unknown>).Image = class {
-  src = "";
-};
 
 // Sketch1 을 그려 둔 상태: 선 하나 + 길이 치수 + 닫힌 shape 하나
 async function sketch1() {

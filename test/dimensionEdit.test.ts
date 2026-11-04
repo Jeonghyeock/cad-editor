@@ -1,4 +1,4 @@
-import "./helpers/assetStub";
+import "./support/browserStubs";
 
 import * as jotai from "jotai";
 import * as React from "react";

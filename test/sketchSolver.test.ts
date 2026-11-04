@@ -1,17 +1,10 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SerializedGeometry } from "src/features/setup/Setup.type";
 import type { SketchConstraint } from "src/features/setup/sketch/constraints/SketchConstraint.type";
-
-// 솔버가 불러오는 SketchGeometryStore → overlayConstants 가 svg 아이콘을 import 하고 Image 로 미리 읽는다.
-// node 에는 둘 다 없으므로 svg 는 경로 문자열로, Image 는 아무것도 안 하는 객체로 대신한 뒤 솔버를 불러온다.
-require.extensions[".svg"] = (m: NodeJS.Module, filename: string) => {
-  m.exports = filename;
-};
-(globalThis as Record<string, unknown>).Image = class {
-  src = "";
-};
 
 // 솔버는 구속 id·타입만으로 캐시를 고르므로, 경우마다 새 솔버로 푼다(실제 planegcs wasm).
 async function solve(geometries: SerializedGeometry[], constraints: SketchConstraint[]) {

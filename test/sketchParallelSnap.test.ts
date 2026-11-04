@@ -1,9 +1,11 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
-import { createSketch, distance, userGeometries } from "./sketchHarness";
+import { createSketch, distance, userGeometries } from "./helpers/sketch";
 
 type Point = { x: number; y: number };
 type PpSnap = (store: SketchGeometryStore, start: Point, end: Point) => { pos: Point } | null;
@@ -13,7 +15,7 @@ const at = (len: number, deg: number): Point => ({ x: len * Math.cos(deg * DEG),
 
 // 30° 선 하나가 있는 스케치. 원점·축도 있다.
 async function sketchWith30DegreeLine() {
-  const store = await createSketch();
+  const { store } = await createSketch();
   const end = at(50, 30);
   store.geometries.set("base", { type: "line", id: "base", x1: 0, y1: 0, x2: end.x, y2: end.y });
   return store;
@@ -42,7 +44,7 @@ test("평행·수직 추론은 어느 방향에서도 끝점을 임계각(5°) �
 
   let fired = 0;
   for (let baseDeg = -170; baseDeg <= 180; baseDeg += 10) {
-    const store = await createSketch();
+    const { store } = await createSketch();
     store.removeReferenceGeometry(); // 축이 아니라 이 선에 걸리게 한다
     const b = at(40, baseDeg);
     store.geometries.set("base", { type: "line", id: "base", x1: 100, y1: 100, x2: 100 + b.x, y2: 100 + b.y });
