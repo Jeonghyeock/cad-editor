@@ -1,40 +1,11 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { SketchConstraintSolver } from "src/features/setup/sketch/constraints/SketchConstraintSolver";
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
-// 스케치 store 는 구속 아이콘(svg)을 불러오고, 모듈을 읽을 때 Image 로 미리 받아 둔다.
-// node 에는 둘 다 없으므로 파일 이름과 빈 Image 로 대신한 뒤 모듈은 동적 import 로 읽는다.
-require.extensions[".svg"] = (module) => {
-  module.exports = module.filename;
-};
-(globalThis as Record<string, unknown>).Image = class {
-  src = "";
-};
-
-let solver: SketchConstraintSolver | null = null;
-
-// 실제 store·구속 저장소·planegcs 솔버·통합 이력을 화면과 같은 방식으로 연결한다
-async function createSketch() {
-  const { SketchGeometryStore } = await import("src/features/setup/sketch/SketchGeometryStore");
-  const { SketchConstraintStore } = await import("src/features/setup/sketch/constraints/SketchConstraintStore");
-  const { SketchConstraintSolver } = await import("src/features/setup/sketch/constraints/SketchConstraintSolver");
-  const { GlobalHistoryManager } = await import("src/features/setup/core/GlobalHistoryManager");
-  if (!solver) {
-    solver = new SketchConstraintSolver();
-    await solver.init();
-  }
-  const store = new SketchGeometryStore();
-  const constraints = new SketchConstraintStore();
-  store.constraintStore = constraints;
-  store.solver = solver;
-  const history = new GlobalHistoryManager();
-  history.setGeometryStore(store);
-  history.setActiveSketch("XY"); // 이력은 열린 스케치의 명령만 기록한다
-  store.globalHistory = history;
-  return { store, constraints, history };
-}
+import { createSketch } from "./helpers/sketch";
 
 test("면으로 고른 원을 지우면 지름 치수도 함께 지우고, undo 하면 되살린다", async () => {
   const { store, constraints, history } = await createSketch();

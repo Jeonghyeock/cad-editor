@@ -1,15 +1,17 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
-import { createSketch, userGeometries } from "./sketchHarness";
+import { createSketch, userGeometries } from "./helpers/sketch";
 
 const DEG = Math.PI / 180;
 
 // 30° 선(base)과 (200,0) 중심 원(circ)이 있는 스케치
 async function sketch(): Promise<SketchGeometryStore> {
-  const store = await createSketch();
+  const { store } = await createSketch();
   store.geometries.set("base", { type: "line", id: "base", x1: 0, y1: 50, x2: 50 * Math.cos(30 * DEG), y2: 50 + 50 * Math.sin(30 * DEG) });
   store.geometries.set("circ", { type: "circle", id: "circ", cx: 200, cy: 0, r: 20 });
   return store;

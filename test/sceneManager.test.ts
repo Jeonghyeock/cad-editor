@@ -1,4 +1,5 @@
 import "./support/browserStubs";
+import "./support/windowStub";
 
 import * as THREE from "three";
 

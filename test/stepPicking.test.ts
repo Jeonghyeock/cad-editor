@@ -1,4 +1,5 @@
 import "./support/browserStubs";
+import "./support/windowStub";
 
 import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";

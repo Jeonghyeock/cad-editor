@@ -1,10 +1,12 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 import { getConstraintGeomIds } from "src/features/setup/utils/geometryUtils";
 
-import { createSketch, sweep, userGeometries } from "./sketchHarness";
+import { createSketch, sweep, userGeometries } from "./helpers/sketch";
 
 type Point = { x: number; y: number };
 
@@ -32,7 +34,7 @@ const constraintsOf = (store: SketchGeometryStore, type: string) =>
 
 test("지름 구속이 걸린 원을 Trim 하면 지름 구속이 남은 호로 옮겨 가고 고아로 남지 않는다", async () => {
   // 고치기 전에는 재매핑 switch 에 diameter 가 없어, 지워진 원 id 를 가리키는 고아 구속이 남았다
-  const store = await createSketch();
+  const { store } = await createSketch();
   store.geometries.set("circ", { type: "circle", id: "circ", cx: 100, cy: 100, r: 20 });
   store.geometries.set("cut", { type: "line", id: "cut", x1: 70, y1: 100, x2: 130, y2: 100 });
   store.applyConstraint({ type: "diameter", id: "dia", circle: { geomId: "circ" }, value: 40 });
@@ -56,7 +58,7 @@ test("지름 구속이 걸린 원을 Trim 하면 지름 구속이 남은 호로 
 });
 
 test("선 양 끝을 잇는 수평 거리 구속은 Trim 뒤 양쪽 조각 끝점으로 옮겨 간다", async () => {
-  const store = await createSketch();
+  const { store } = await createSketch();
   store.geometries.set("base", { type: "line", id: "base", x1: 0, y1: 50, x2: 100, y2: 50 });
   store.geometries.set("cutA", { type: "line", id: "cutA", x1: 30, y1: 30, x2: 30, y2: 70 });
   store.geometries.set("cutB", { type: "line", id: "cutB", x1: 70, y1: 30, x2: 70, y2: 70 });
@@ -80,7 +82,7 @@ const lengthOf = (g: { x1: number; y1: number; x2: number; y2: number }) => Math
 
 test("길이 치수가 걸린 선을 Trim 하면 치수는 길이가 바뀐 조각으로 옮겨 가지 않는다", async () => {
   // 고치기 전에는 line_length=100 이 60 짜리 조각으로 옮겨 가, 솔버가 조각을 다시 100 으로 늘려 자른 선을 또 넘었다
-  const store = await createSketch();
+  const { store } = await createSketch();
   store.geometries.set("base", { type: "line", id: "base", x1: 10, y1: 50, x2: 110, y2: 50 });
   store.geometries.set("cut", { type: "line", id: "cut", x1: 50, y1: 30, x2: 50, y2: 70 });
   store.applyConstraint({ type: "line_length", id: "len", line: { geomId: "base" }, value: 100 });
@@ -103,7 +105,7 @@ test("치수를 넣은 100×60 사각형에 Fillet 을 걸어도 사각형 크�
   // 고치기 전에는 잘린 변으로 옮겨 간 line_length 때문에 전체가 110×70 으로 커졌다
   const { RectangleDrawTool } = await import("src/features/setup/sketch/tools/RectangleDrawTool");
   const { FilletDrawTool } = await import("src/features/setup/sketch/tools/FilletDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const rect = new RectangleDrawTool();
   rect.onPointerDown(store, { x: 0, y: 0 }, { x: 0, y: 0 });
   rect.onPointerDown(store, { x: 100, y: 60 }, { x: 100, y: 60 });
@@ -124,7 +126,7 @@ test("치수를 넣은 100×60 사각형에 Fillet 을 걸어도 사각형 크�
 });
 
 test("equal·midpoint 도 길이가 바뀐 조각으로 옮겨 가지 않는다", async () => {
-  const store = await createSketch();
+  const { store } = await createSketch();
   store.geometries.set("a", { type: "line", id: "a", x1: 10, y1: 50, x2: 110, y2: 50 });
   store.geometries.set("b", { type: "line", id: "b", x1: 10, y1: 90, x2: 110, y2: 90 });
   store.geometries.set("p", { type: "point", id: "p", x: 60, y: 50 });
@@ -146,7 +148,7 @@ test("equal·midpoint 도 길이가 바뀐 조각으로 옮겨 가지 않는다"
 test("길이가 그대로인 조각에는 길이 구속이 그대로 옮겨 간다(반원 보각)", async () => {
   const { ComplementDrawTool } = await import("src/features/setup/sketch/tools/ComplementDrawTool");
   const run = async (endAngle: number) => {
-    const store = await createSketch();
+    const { store } = await createSketch();
     store.geometries.set("arc", { type: "arc", id: "arc", cx: 100, cy: 100, r: 20, startAngle: 0, endAngle });
     store.applyConstraint({ type: "arc_length", id: "al", arc: { geomId: "arc" }, value: 20 * endAngle });
     const hit = { x: 100 + 20 * Math.cos(endAngle / 2), y: 100 + 20 * Math.sin(endAngle / 2) };

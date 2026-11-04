@@ -1,4 +1,4 @@
-import "./helpers/assetStub";
+import "./support/browserStubs";
 
 import { createStore } from "jotai";
 

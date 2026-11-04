@@ -1,44 +1,15 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { SerializedGeometry } from "src/features/setup/Setup.type";
-import type { SketchConstraintSolver } from "src/features/setup/sketch/constraints/SketchConstraintSolver";
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 
-// 스케치 store 는 구속 아이콘(svg)을 불러오고, 모듈을 읽을 때 Image 로 미리 받아 둔다.
-// node 에는 둘 다 없으므로 파일 이름과 빈 Image 로 대신한 뒤 모듈은 동적 import 로 읽는다.
-require.extensions[".svg"] = (module) => {
-  module.exports = module.filename;
-};
-(globalThis as Record<string, unknown>).Image = class {
-  src = "";
-};
+import { createSketch } from "./helpers/sketch";
 
 type Point = { x: number; y: number };
 type Line = SerializedGeometry & { type: "line" };
-
-let solver: SketchConstraintSolver | null = null;
-
-// 실제 store·구속 저장소·planegcs 솔버·통합 이력을 화면과 같은 방식으로 연결한다
-async function createSketch() {
-  const { SketchGeometryStore } = await import("src/features/setup/sketch/SketchGeometryStore");
-  const { SketchConstraintStore } = await import("src/features/setup/sketch/constraints/SketchConstraintStore");
-  const { SketchConstraintSolver } = await import("src/features/setup/sketch/constraints/SketchConstraintSolver");
-  const { GlobalHistoryManager } = await import("src/features/setup/core/GlobalHistoryManager");
-  if (!solver) {
-    solver = new SketchConstraintSolver();
-    await solver.init();
-  }
-  const store = new SketchGeometryStore();
-  const constraints = new SketchConstraintStore();
-  store.constraintStore = constraints;
-  store.solver = solver;
-  const history = new GlobalHistoryManager();
-  history.setGeometryStore(store);
-  history.setActiveSketch("XY"); // 이력은 열린 스케치의 명령만 기록한다
-  store.globalHistory = history;
-  return { store, constraints };
-}
 
 // (20,10) 에서 시작하는 60×30 사각형(가로 변 horizontal, 세로 변 vertical)을 그려 전부 선택한다
 const RECT_IDS: [string, string, string, string] = ["t", "r", "b", "l"];
@@ -51,9 +22,11 @@ async function drawRectangle(store: SketchGeometryStore) {
   store.selectedIds = [...RECT_IDS];
 }
 
-// 도구가 새로 만든 기하 — 원본 선택 순서(t, r, b, l)와 같은 순서로 들어간다
+// 도구가 새로 만든 기하(참조 기하 제외) — 원본 선택 순서(t, r, b, l)와 같은 순서로 들어간다
 function copiesOf(store: SketchGeometryStore, originalIds: string[]): SerializedGeometry[] {
-  return [...store.geometries.values()].filter((g) => !originalIds.includes(g.id));
+  return [...store.geometries.values()].filter(
+    (g) => !originalIds.includes(g.id) && !("isReference" in g && g.isReference),
+  );
 }
 
 function directionConstraintsOf(store: SketchGeometryStore, geomId: string): string[] {

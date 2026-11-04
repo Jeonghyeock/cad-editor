@@ -1,3 +1,5 @@
+import "./support/browserStubs";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -5,7 +7,7 @@ import type { SerializedGeometry } from "src/features/setup/Setup.type";
 import type { SketchGeometryStore } from "src/features/setup/sketch/SketchGeometryStore";
 import type { ProfileDrawTool } from "src/features/setup/sketch/tools/ProfileDrawTool";
 
-import { createSketch, distance, sweep, userGeometries, vertexOf } from "./sketchHarness";
+import { createSketch, distance, sweep, userGeometries, vertexOf } from "./helpers/sketch";
 
 type Point = { x: number; y: number };
 type Coincident = { type: "coincident"; pointA: { geomId: string; vertexIndex: number }; pointB: { geomId: string; vertexIndex: number } };
@@ -26,7 +28,7 @@ function joinPoints(store: SketchGeometryStore, idA: string, idB: string): [Poin
 // Profile 도구로 (0,0)→(10,0) 직선을 그린 상태. 클릭은 입력 패널 값(H/V)으로 넣어 더블클릭 판정을 피한다.
 async function profileAfterLine(): Promise<{ store: SketchGeometryStore; tool: ProfileDrawTool }> {
   const { ProfileDrawTool } = await import("src/features/setup/sketch/tools/ProfileDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const tool = new ProfileDrawTool();
   tool.applyInputValues(store, { H: 0, V: 0 });
   tool.applyInputValues(store, { H: 10, V: 0 });
@@ -106,7 +108,7 @@ test("Profile 3점 호를 시계 방향으로 그려도 선 끝에 붙는 쪽 �
 // (-10,0)→(0,0) 선 A 와, (10,-10) 에서 아래로 내려가는 선 B 를 Connect(G1)로 잇는다 — 오른쪽으로 꺾이는 90° 호
 async function connectRightTurn() {
   const { ConnectDrawTool } = await import("src/features/setup/sketch/tools/ConnectDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const a: SerializedGeometry = { type: "line", id: "A", x1: -10, y1: 0, x2: 0, y2: 0 };
   const b: SerializedGeometry = { type: "line", id: "B", x1: 10, y1: -10, x2: 10, y2: -30 };
   store.geometries.set(a.id, a);
@@ -140,7 +142,7 @@ test("Connect G1 호가 오른쪽으로 꺾여도 90° 호로 두 선 끝을 잇
 
 test("Profile 을 시계 방향 탄젠트 호로 닫아도 호가 바깥으로 돌고 시작점에서 닫힌다", async () => {
   const { ProfileDrawTool } = await import("src/features/setup/sketch/tools/ProfileDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const tool = new ProfileDrawTool();
   // (0,0)→(0,10)→(10,10)→(10,0) 을 그린 뒤, 남쪽으로 내려가던 방향에서 오른쪽으로 꺾어 (0,0) 으로 닫는다
   for (const [H, V] of [[0, 0], [0, 10], [10, 10], [10, 0]]) tool.applyInputValues(store, { H, V });
@@ -162,7 +164,7 @@ test("시계 방향 3점 호로 시작한 Profile 을 닫으면 닫는 coinciden
   // 고치기 전에는 첫 세그먼트가 호면 시작을 늘 vertex 1 로 봐서, start/end 를 바꿔 둔 시계 방향 호에서는
   // 닫는 coincident 가 호의 반대쪽 끝((10,-10))에 붙었다
   const { ProfileDrawTool } = await import("src/features/setup/sketch/tools/ProfileDrawTool");
-  const store = await createSketch();
+  const { store } = await createSketch();
   const tool = new ProfileDrawTool();
   tool.profileMode = "three-point-arc";
   // (0,0) 에서 중심 (0,-10) 원을 따라 시계 방향으로 (10,-10) 까지
