@@ -15,6 +15,7 @@ import {
   fileDataAtom,
   isModifiedAtomFamily,
   markFileCleanAtom,
+  cloneGlobalData,
 } from "src/shared/stores/File.store";
 import type { CadFile, GlobalData } from "src/shared/types/File.type";
 import { extractPersistentData } from "src/shared/utils/ExtractDataUtils";
@@ -170,6 +171,8 @@ export const useFileActions = () => {
         preview,
         persistentData,
       );
+      // 디스크에 쓰는 내용 그대로를 IPC 전에 떠 둔다 — 저장이 끝나면 originData 로 쓴다.
+      const savedData = cloneGlobalData(globalData);
 
       const res: boolean = await electron.ipcRenderer.invoke(
         FileChannels.SAVE_FILE,
@@ -184,9 +187,9 @@ export const useFileActions = () => {
       // fs.readFileSync + JSON.parse 로 hydrate 해 main process 를 수 초 block. recent 메뉴
       // 다시 도입 시 metadata-only IPC 또는 lazy load 로 분리해 호출.
 
-      // save 후 globalData 는 이미 최신. originData 만 동기화해 dirty flag 를 clean 으로.
-      // markFileCleanAtom 이 deep clone 으로 originData 분리 — globalData mutation 누수 방지.
-      store.set(markFileCleanAtom, fileId);
+      // originData 를 디스크에 쓴 사본으로 맞춰 dirty flag 를 clean 으로. 저장하는 동안 한 편집은
+      // 디스크에 없으므로 '수정됨'으로 남는다(지금 globalData 로 맞추면 그 편집이 닫을 때 사라진다).
+      store.set(markFileCleanAtom, fileId, savedData);
     },
     [
       store,
@@ -211,6 +214,8 @@ export const useFileActions = () => {
       preview,
       persistentData,
     );
+    // 디스크에 쓰는 내용 그대로를 IPC 전에 떠 둔다 — 새 파일의 originData 로 쓴다.
+    const savedData = cloneGlobalData(globalData);
 
     const res: boolean = await electron.ipcRenderer.invoke(
       FileChannels.SAVE_AS_FILE,
@@ -220,19 +225,26 @@ export const useFileActions = () => {
 
     if (!res) return;
 
+    // main 은 새 파일에 새 fileId 를 준다. 디스크에서 다시 읽지 않고 메모리 데이터(저장하는 동안 한 편집 포함)를
+    // 새 fileId 로 옮긴다 — 다시 읽으면 그 편집이 사라진다. 옮긴 뒤 바로 활성 fileId 를 바꿔, 목록 갱신을 기다리는
+    // 동안의 편집도 새 fileId 로 가게 한다. 옛 fileId 데이터는 목록 갱신이 지운다.
+    const newFileId: string = await electron.ipcRenderer.invoke(
+      FileChannels.GET_FILE_ID,
+    );
+    store.set(fileDataAtomFamily(newFileId), {
+      fileId: newFileId,
+      globalData: store.get(fileDataAtomFamily(fileId)).globalData,
+      originData: savedData,
+    });
+    store.set(fileIdAtom, newFileId);
+
     await updateOpenFileList();
     // updateRecentFileList() 제거 — dead atom + 무거운 IPC.
-    await updateFileId();
-
-    setFileContentToFileData();
-    store.set(markFileCleanAtom, store.get(fileIdAtom));
   }, [
     store,
     extractPersistentDataWithEncoding,
     generatePreview,
     updateOpenFileList,
-    updateFileId,
-    setFileContentToFileData,
   ]);
 
   /**
