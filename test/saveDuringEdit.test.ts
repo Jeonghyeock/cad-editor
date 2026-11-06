@@ -45,6 +45,8 @@ let main: typeof FileIpcUtil;
       switch (channel) {
         case FileChannels.GET_FILE_ID:
           return main.getFileId();
+        case FileChannels.SET_FILE_ID:
+          return main.setFileId(args[0] as string);
         case FileChannels.GET_OPEN_FILE_LIST:
           return main.getOpenFileList();
         case FileChannels.OPEN_FILE:
@@ -156,6 +158,31 @@ test("Save As 하는 동안 한 편집은 새 파일 탭에 남고 '수정됨'�
   assert.deepEqual(planesInMemory(newFileId), ["P1", "P2"]);
   assert.deepEqual(planesOnDisk(saveDialogPath), ["P1"]);
   assert.equal(isModified(newFileId), true);
+});
+
+test("Save As 가 끝나자마자 다른 탭을 눌러도 그 탭의 데이터를 Save As 한 파일 데이터로 덮지 않는다", async () => {
+  // 고치기 전에는 Save As 뒤 새 fileId 를 GET_FILE_ID 로 따로 물었다. main 이 새 id 를 활성으로 둔 뒤 그 질문보다
+  // 탭 클릭(SET_FILE_ID)이 먼저 닿으면 그 탭의 id 가 돌아와, 그 탭의 미저장 편집이 Save As 한 파일 내용으로 바뀌었다
+  const { actions, dir } = await openFile("tab-b");
+  addPlane("B-unsaved"); // B 탭의 저장 안 한 편집
+  const fileA = path.join(dir, "tab-a.cad");
+  fs.writeFileSync(fileA, JSON.stringify({ fileId: "tab-a", unit: "MMGS", lastURL: "/input", setup: {} }), "utf-8");
+  assert.equal(await actions.openFileAction(fileA), true);
+  addPlane("A1");
+
+  saveDialogPath = path.join(dir, "copy.cad");
+  let clickB: Promise<void> | undefined;
+  duringSave = () => {
+    clickB = actions.activateFileAction("tab-b"); // main 이 Save As 를 마친 뒤 renderer 가 답을 받기 전에 탭 B 클릭
+  };
+  await actions.saveAsFileAction();
+  await clickB;
+
+  const newFileId = main.getOpenFileList().find((f) => f.path === saveDialogPath)!.fileId;
+  assert.notEqual(newFileId, "tab-b");
+  assert.deepEqual(planesInMemory("tab-b"), ["B-unsaved"]);
+  assert.deepEqual(planesInMemory(newFileId), ["A1"]);
+  assert.equal(store.get(fileStore.fileIdAtom), "tab-b");
 });
 
 test("저장·Save As 하는 동안 편집이 없으면 저장 뒤 '수정 없음'이다", async () => {

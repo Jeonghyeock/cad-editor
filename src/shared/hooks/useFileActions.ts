@@ -217,20 +217,19 @@ export const useFileActions = () => {
     // 디스크에 쓰는 내용 그대로를 IPC 전에 떠 둔다 — 새 파일의 originData 로 쓴다.
     const savedData = cloneGlobalData(globalData);
 
-    const res: boolean = await electron.ipcRenderer.invoke(
+    // main 은 새 파일에 새 fileId 를 주고 그 id 를 돌려준다(실패·취소면 false). GET_FILE_ID 로 따로 묻지 않는다 —
+    // 그 사이 탭 전환이 먼저 처리되면 그 탭의 id 를 받아 그 탭 데이터를 덮는다.
+    const newFileId: string | false = await electron.ipcRenderer.invoke(
       FileChannels.SAVE_AS_FILE,
       fileId,
       fileContent,
     );
 
-    if (!res) return;
+    if (!newFileId) return;
 
-    // main 은 새 파일에 새 fileId 를 준다. 디스크에서 다시 읽지 않고 메모리 데이터(저장하는 동안 한 편집 포함)를
-    // 새 fileId 로 옮긴다 — 다시 읽으면 그 편집이 사라진다. 옮긴 뒤 바로 활성 fileId 를 바꿔, 목록 갱신을 기다리는
-    // 동안의 편집도 새 fileId 로 가게 한다. 옛 fileId 데이터는 목록 갱신이 지운다.
-    const newFileId: string = await electron.ipcRenderer.invoke(
-      FileChannels.GET_FILE_ID,
-    );
+    // 디스크에서 다시 읽지 않고 메모리 데이터(저장하는 동안 한 편집 포함)를 새 fileId 로 옮긴다 — 다시 읽으면
+    // 그 편집이 사라진다. 옮긴 뒤 바로 활성 fileId 를 바꿔, 목록 갱신을 기다리는 동안의 편집도 새 fileId 로 가게
+    // 한다. 옛 fileId 데이터는 목록 갱신이 지운다.
     store.set(fileDataAtomFamily(newFileId), {
       fileId: newFileId,
       globalData: store.get(fileDataAtomFamily(fileId)).globalData,
