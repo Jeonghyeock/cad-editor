@@ -175,7 +175,12 @@ class FileIpcUtil {
     }
   }
 
-  public async saveAsFile(fileId: string, fileContent: FileContent) {
+  // 저장한 새 파일의 fileId 를 돌려준다(실패·취소면 false). renderer 가 GET_FILE_ID 로 따로 물으면, 그 사이에
+  // 먼저 처리된 탭 전환(SET_FILE_ID)·열기의 fileId 를 받아 그 탭의 데이터를 Save As 한 파일 데이터로 덮는다.
+  public async saveAsFile(
+    fileId: string,
+    fileContent: FileContent,
+  ): Promise<string | false> {
     try {
       // 기존 파일과 별개로 새로 저장
       if (this.isDialogOpen) throw new Error("dialog open");
@@ -209,7 +214,7 @@ class FileIpcUtil {
         filePath.fileId === fileId ? newFilePath : filePath,
       );
 
-      return true;
+      return newFileId;
     } catch {
       return false;
     }
