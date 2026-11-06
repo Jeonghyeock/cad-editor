@@ -57,7 +57,8 @@ See [`packages/occt-native/README.md`](packages/occt-native/README.md) for detai
 | `npm start` | Development mode (hot reload) |
 | `npm run package` | Package the app (unpacked) |
 | `npm run make` | Build platform installers |
-| `npm run lint` | ESLint over `src/` |
+| `npm run typecheck` | TypeScript type check (`tsc --noEmit`) |
+| `npm run lint` | ESLint over `src/` and `test/` |
 | `npm run format` | Prettier format |
 
 ## License
