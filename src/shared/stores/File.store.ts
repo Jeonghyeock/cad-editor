@@ -55,22 +55,31 @@ export const globalDataAtom = atom(
 );
 
 /**
- * file 의 dirty flag 를 clean 으로 — originData 를 현재 globalData 의 deep clone 으로 동기화.
+ * globalData 의 deep clone — 저장할 때 디스크에 쓰는 내용을 떠 두는 데 쓴다.
  * setup 만 cloneSetupData (globalHistory 등 non-cloneable 회피).
  */
-export const markFileCleanAtom = atom(null, (_get, set, fileId: string) => {
-  set(fileDataAtomFamily(fileId), (prev) => {
-    const { setup, ...rest } = prev.globalData;
-    const restCloned = structuredClone(rest);
-    return {
+export const cloneGlobalData = (globalData: GlobalData): GlobalData => {
+  const { setup, ...rest } = globalData;
+  return {
+    ...structuredClone(rest),
+    setup: cloneSetupData(setup),
+  };
+};
+
+/**
+ * file 의 dirty flag 를 clean 으로 — originData 를 디스크에 쓴 내용(savedData)으로 맞춘다.
+ * savedData 는 저장 IPC 를 보내기 전에 cloneGlobalData 로 떠 둔 사본이다. 저장이 끝난 시점의 globalData 로
+ * 맞추면 저장하는 동안 한 편집까지 clean 이 되어, 그 탭을 닫을 때 확인창 없이 사라진다.
+ */
+export const markFileCleanAtom = atom(
+  null,
+  (_get, set, fileId: string, savedData: GlobalData) => {
+    set(fileDataAtomFamily(fileId), (prev) => ({
       ...prev,
-      originData: {
-        ...restCloned,
-        setup: cloneSetupData(setup),
-      },
-    };
-  });
-});
+      originData: savedData,
+    }));
+  },
+);
 
 export const isModifiedAtomFamily = atomFamily((fileId: string) =>
   atom((get) => {
