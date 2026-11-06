@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          # package.json 에 engines 도 .nvmrc 도 없어 다른 저장소와 같은 24 를 쓴다. 단위 테스트는 Electron 이 아니라 이 Node 로 돈다.
+          node-version: 24
+          cache: npm
+      # 테스트는 Electron 실행 파일을 쓰지 않아 내려받지 않는다.
+      # C++ 애드온(packages/occt-native)은 의존성도 워크스페이스도 아니어서 npm ci 가 빌드하지 않는다(npm run build:native 로만 빌드).
+      # 설치 스크립트가 있는 나머지 패키지(esbuild·unrs-resolver·@parcel/watcher)는 미리 빌드된 바이너리를 쓴다.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm run typecheck
+      - run: npm run lint
+      # 테스트 파일이 0개면 실패한다(scripts/check-test-files.js).
+      - run: npm run test:unit

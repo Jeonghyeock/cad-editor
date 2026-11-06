@@ -15,9 +15,10 @@
     "package-local": "node scripts/package-local.js",
     "make": "electron-forge make",
     "build:native": "set \"PATH=C:\\Program Files\\CMake\\bin;%PATH%\" && cd packages/occt-native && npx cmake-js compile --CDOCCT_ROOT=C:/vcpkg/installed/x64-windows-static",
-    "test:unit": "tsx --test test/*.test.ts",
+    "test:unit": "node scripts/check-test-files.js && tsx --test test/*.test.ts",
     "test": "npm run test:unit",
-    "lint": "eslint --ext .ts,.tsx src",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --ext .ts,.tsx src test",
     "clean": "rimraf node_modules out .vite package-lock.json",
     "format": "prettier --write src"
   },
